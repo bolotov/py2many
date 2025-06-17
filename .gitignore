@@ -3,8 +3,10 @@
 *~
 *.swn
 *.pyc
+
 .coverage
 .ropeproject
+**/__pycache__
 *.egg-info
 .tox
 build
@@ -28,6 +30,7 @@ tests/cases/*.nim
 dist/
 tests/output
 target/
+
 Cargo.lock
 uv.lock
 go.mod

@@ -1,0 +1,5 @@
+registry.py        ALL_SETTINGS for all languages imported in a wird way
+custom_logger.py   A logger for troubleshooting
+macosx_llm.py      Supposed to use mlx_lm on MacOS with Apple Silicon using MLX framework
+exceptions.py      Exceptions / Errors of AST
+registry.py BAD. Language target registry bodge GOD which shouldn't exist

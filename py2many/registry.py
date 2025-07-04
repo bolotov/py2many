@@ -6,6 +6,17 @@ from .language import LanguageSettings
 from .python_transformer import PythonTranspiler, RestoreMainRewriter
 from .rewriters import InferredAnnAssignRewriter
 
+
+"""
+This module currently serves as a centralized registry for all
+language backends.
+Due to hardcoded imports and duplicated logic, it is brittle
+and hard to maintain.
+Future improvement: refactor into a dynamic plugin system with
+automatic discovery.
+"""
+
+
 CI = os.environ.get("CI", "0")
 if CI in ["1", "true"]:  # pragma: no cover
     from .pycpp import settings as cpp_settings

@@ -200,7 +200,7 @@ def _get_output_path(filename, ext, outdir):
 def _process_one(settings: LanguageSettings, filename: Path, outdir: str, args, env):
     """Transpile and reformat.
 
-    Returns False if reformatter failed.
+    Returns False if reformater failed.
     """
     suffix = f".{args.suffix}" if args.suffix is not None else settings.ext
     output_path = _get_output_path(
@@ -382,13 +382,13 @@ def _process_dir(
 def main(args=None, env=os.environ):
     parser = argparse.ArgumentParser()
     LANGS = _get_all_settings(FAKE_ARGS)
-    for lang, settings in LANGS.items():
-        parser.add_argument(
-            f"--{lang}",
-            type=bool,
-            default=False,
-            help=f"Generate {settings.display_name} code",
-        )
+
+    parser.add_argument(
+        "--lang",
+        choices=LANGS.keys(),
+        required=True,
+        help=f"Target language. Choices: {', '.join(LANGS.keys())}",
+    )
     parser.add_argument("--outdir", default=None, help="Output directory")
     parser.add_argument(
         "-i",
@@ -473,12 +473,11 @@ def main(args=None, env=os.environ):
         print("extension supported only with rust via pyo3")
         return -1
 
-    settings_func = ALL_SETTINGS["cpp"]
-    for lang, func in ALL_SETTINGS.items():
-        arg = getattr(args, lang)
-        if arg:
-            settings_func = func
-            break
+    selected_language = args.lang
+    if selected_language not in ALL_SETTINGS:
+        raise ValueError(f"Unsupported language: {selected_language}")
+
+    settings_func = ALL_SETTINGS[selected_language]
     settings = settings_func(args, env=env)
 
     if args.comment_unsupported:

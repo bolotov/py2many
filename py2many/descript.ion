@@ -1,5 +1,29 @@
-registry.py        ALL_SETTINGS for all languages imported in a wird way
-custom_logger.py   A logger for troubleshooting
-macosx_llm.py      Supposed to use mlx_lm on MacOS with Apple Silicon using MLX framework
-exceptions.py      Exceptions / Errors of AST
-registry.py BAD. Language target registry bodge GOD which shouldn't exist
+__init__.py               Package marker; exposes version.
+__main__.py               Actual CLI entrypoint for py2many.
+analysis.py               AST analysis utilities and import context processing.
+annotation_transformer.py AST transformer to flag type annotations.
+ast_helpers.py            Helper functions to work with AST nodes.
+astx.py                   Extended AST node dataclasses with extra metadata.
+cli.py                    Main CLI logic for transpiling/converting files.
+clike.py                  Base transpiler for C-like languages.
+context.py                AST transformers to add context (vars, assignments, etc).
+declaration_extractor.py  Extracts typed member declarations from classes/functions.
+exceptions.py             Custom exception classes for AST and typing errors.
+helpers.py                Miscellaneous AST helpers and annotation stringification.
+inference.py              Type inference and compatibility logic for the AST.
+language.py               Defines LanguageSettings dataclass for targets.
+llm_transpile.py          Transpiling using LLMs (local or remote).
+macosx_llm.py             MLX-based LLM interface for MacOS (Apple Silicon).
+mutability_transformer.py Marks mutable variables in functions.
+nesting_transformer.py    Annotates AST with block nesting levels.
+process_helpers.py        Subprocess/path helpers for external tools.
+python_transformer.py     Python code generator and main rewriter.
+raises_transformer.py     Detects exception-raising in function ASTs.
+registry.py               FIXME Language backend registry; imports all target settings.
+result.py                 Rust-like Result type for functional-style error handling.
+rewriters.py              AST rewriters for various Python-to-X transformations.
+scope.py                  Scope/context tracking for AST nodes.
+smt.py                    Dummy SMT (satisfiability modulo theories) interfaces.
+toposort_modules.py       Topological sort for Python modules (import dependencies).
+tracer.py                 AST tracing utilities for types, values, recursion.
+version.py                py2many version string.

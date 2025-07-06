@@ -1,70 +1,43 @@
-import os
+import sys
 import pathlib
+import importlib
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple
 from unittest.mock import Mock
 
-from .language import LanguageSettings
-from .python_transformer import PythonTranspiler, RestoreMainRewriter
-from .rewriters import InferredAnnAssignRewriter
-
+from py2many.language import LanguageSettings
+from py2many.python_transformer import PythonTranspiler, RestoreMainRewriter
+from py2many.rewriters import InferredAnnAssignRewriter
 
 """
-This module currently serves as a centralized registry for all
-language backends.
-Due to hardcoded imports and duplicated logic, it is brittle
-and hard to maintain.
-Future improvement: refactor into a dynamic plugin system with
-automatic discovery.
+This module constructs ALL_SETTINGS from __init__.py of language backends.
 """
 
+# Now instead of hardcoded modules for target languages uses pathlib which is also bad
 
-CI = os.environ.get("CI", "0")
-if CI in ["1", "true"]:  # pragma: no cover
-    from .pycpp import settings as cpp_settings
-    from .pyd import settings as dlang_settings
-    from .pydart import settings as dart_settings
-    from .pygo import settings as go_settings
-    from .pyjl import settings as julia_settings
-    from .pykt import settings as kotlin_settings
-    from .pymojo import settings as mojo_settings
-    from .pynim import settings as nim_settings
-    from .pyrs import settings as rust_settings
-    from .pysmt import settings as smt_settings
-    from .pyv import settings as vlang_settings
-    from .pyzig import settings as zig_settings
-else:
-    try:  # pragma: no cover
-        from .pycpp import settings as cpp_settings
-        from .pyd import settings as dlang_settings
-        from .pydart import settings as dart_settings
-        from .pygo import settings as go_settings
-        from .pyjl import settings as julia_settings
-        from .pykt import settings as kotlin_settings
-        from .pymojo import settings as mojo_settings
-        from .pynim import settings as nim_settings
-        from .pyrs import settings as rust_settings
-        from .pysmt import settings as smt_settings
-        from .pyv import settings as vlang_settings
-        from .pyzig import settings as zig_settings
-    except ImportError:
-        from pycpp import settings as cpp_settings
-        from pyd import settings as dlang_settings
-        from pydart import settings as dart_settings
-        from pygo import settings as go_settings
-        from pyjl import settings as julia_settings
-        from pykt import settings as kotlin_settings
-        from pymojo import settings as mojo_settings
-        from pynim import settings as nim_settings
-        from pyrs import settings as rust_settings
-        from pysmt import settings as smt_settings
-        from pyv import settings as vlang_settings
-        from pyzig import settings as zig_settings
+FAKE_ARGS = Mock(indent=4)  # TODO: Investigate this more
 
 PY2MANY_DIR = pathlib.Path(__file__).parent
-ROOT_DIR = PY2MANY_DIR.parent
-FAKE_ARGS = Mock(indent=4)
+PROJECT_ROOT = PY2MANY_DIR.parent  # project root directory
+TARGETS_DIR = PROJECT_ROOT / "targets"
+
+if str(TARGETS_DIR) not in sys.path:
+    sys.path.insert(0, str(TARGETS_DIR))
 
 
-def python_settings(args, env=os.environ):
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+def python_settings(args: Any, env: Optional[Dict[str, str]] = None) -> LanguageSettings:
+    """
+    Create and return a LanguageSettings instance for the Python backend.
+
+    Args:
+        args: Parsed command-line arguments or configuration object. MUST have attribute 'no_prologue'.
+        env: Optional mapping of environment variables. If None, defaults to os.environ in _get_all_settings.
+
+    Returns:
+        LanguageSettings: Configured for Python output.
+    """
     return LanguageSettings(
         PythonTranspiler(args.no_prologue),
         ".py",
@@ -75,22 +48,43 @@ def python_settings(args, env=os.environ):
     )
 
 
-ALL_SETTINGS = {
-    "python": python_settings,
-    "cpp": cpp_settings,
-    "rust": rust_settings,
-    "julia": julia_settings,
-    "kotlin": kotlin_settings,
-    "nim": nim_settings,
-    "mojo": mojo_settings,
-    "dlang": dlang_settings,
-    "dart": dart_settings,
-    "go": go_settings,
-    "vlang": vlang_settings,
-    "smt": smt_settings,
-    "zig": zig_settings,
-}
+# TODO: consider LanguageName type instead of str for use down here
+def discover_targets() -> Iterator[Tuple[str, Callable[..., Any]]]:
+    """
+    Imperative. Dynamically discover and yield available target language backends.
+
+    Yields:
+        Tuple[str, Callable[..., Any]]: Pairs of (language_name, settings_factory),
+        where settings_factory is a callable that returns a LanguageSettings instance.
+    """
+    for target_path in TARGETS_DIR.iterdir():
+        if target_path.is_dir() and (target_path / "__init__.py").exists():
+            try:
+                mod = importlib.import_module(f"targets.{target_path.name}")
+                if hasattr(mod, "settings"):
+                    yield target_path.name, mod.settings
+            except ImportError as e:
+                print(f"Failed to import {target_path.name}: {e}")
 
 
-def _get_all_settings(args, env=os.environ):
+PYTHON_SETTINGS = {"python": python_settings,}
+
+ALL_SETTINGS = PYTHON_SETTINGS | {name: settings for name, settings in discover_targets()}
+
+
+def _get_all_settings(args: Any, env: Optional[Dict[str, str]] = None)\
+        -> Dict[str, LanguageSettings]:
+    """
+    Build a dictionary mapping language names to their LanguageSettings instances.
+
+    Args:
+        args: Parsed command-line arguments or configuration object.
+        env: Optional mapping of environment variables. If None, defaults to os.environ.
+
+    Returns:
+        Dict[str, LanguageSettings]: Mapping from language name to its settings instance.
+    """
+    if env is None:
+        import os
+        env = os.environ
     return {key: func(args, env=env) for key, func in ALL_SETTINGS.items()}

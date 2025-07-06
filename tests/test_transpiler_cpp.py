@@ -3,7 +3,7 @@ import textwrap
 try:
     from py2many.pycpp.transpiler import transpile
 except ImportError:
-    from pycpp.transpiler import transpile
+    from targets.cpp.transpiler import transpile
 
 
 def parse(*args):

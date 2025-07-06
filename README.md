@@ -77,7 +77,7 @@ https://github.com/adsharma/py2many/tree/main/tests/expected (fib*)
 
 Requirements:
 
-- Python 3.8+
+- Python 3.9+
 
 Local installation:
 

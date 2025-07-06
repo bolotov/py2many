@@ -11,7 +11,11 @@ try:
         _conan_include_dirs,
     )
 except ImportError:
-    from pycpp import REQUIRED_INCLUDE_FILES, _conan_include_args, _conan_include_dirs
+    from targets.cpp import (
+        REQUIRED_INCLUDE_FILES,
+        _conan_include_args,
+        _conan_include_dirs
+    )
 
 
 class TestSettings(unittest.TestCase):

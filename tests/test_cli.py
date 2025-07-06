@@ -23,7 +23,7 @@ from py2many.process_helpers import find_executable
 try:
     from py2many.pycpp import _conan_include_args
 except ImportError:
-    from pycpp import _conan_include_args
+    from targets.cpp import _conan_include_args
 
 import py2many.cli
 

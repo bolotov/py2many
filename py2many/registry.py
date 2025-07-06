@@ -23,17 +23,19 @@ TARGETS_DIR = PROJECT_ROOT / "targets"
 if str(TARGETS_DIR) not in sys.path:
     sys.path.insert(0, str(TARGETS_DIR))
 
-
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
 
 def python_settings(args: Any, env: Optional[Dict[str, str]] = None) -> LanguageSettings:
     """
     Create and return a LanguageSettings instance for the Python backend.
 
     Args:
-        args: Parsed command-line arguments or configuration object. MUST have attribute 'no_prologue'.
-        env: Optional mapping of environment variables. If None, defaults to os.environ in _get_all_settings.
+        args: Parsed command-line arguments or configuration object.
+              MUST have attribute 'no_prologue'.
+        env: Optional mapping of environment variables.
+             If None, defaults to os.environ in _get_all_settings.
 
     Returns:
         LanguageSettings: Configured for Python output.
@@ -67,12 +69,11 @@ def discover_targets() -> Iterator[Tuple[str, Callable[..., Any]]]:
                 print(f"Failed to import {target_path.name}: {e}")
 
 
-PYTHON_SETTINGS = {"python": python_settings,}
-
+PYTHON_SETTINGS = {"python": python_settings, }
 ALL_SETTINGS = PYTHON_SETTINGS | {name: settings for name, settings in discover_targets()}
 
 
-def _get_all_settings(args: Any, env: Optional[Dict[str, str]] = None)\
+def _get_all_settings(args: Any, env: Optional[Dict[str, str]] = None) \
         -> Dict[str, LanguageSettings]:
     """
     Build a dictionary mapping language names to their LanguageSettings instances.

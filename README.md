@@ -1,19 +1,20 @@
-# py2many: Python to many CLike languages transpiler
+# py2many: Python to other languages transpiler
 
-![Build](https://github.com/py2many/py2many/actions/workflows/fast.yaml/badge.svg)
-![License](https://img.shields.io/github/license/adsharma/py2many?color=brightgreen)
+![Build](https://github.com/py2many/py2many/actions/workflows/fast.yaml/badge.svg)![License](https://img.shields.io/github/license/adsharma/py2many?color=brightgreen)
 
 ## Why
 
-Python is popular, easy to program in, but has poor runtime
-performance. We can fix that by transpiling a subset of the language
-into a more performant, statically typed language.
+Python is popular, easy to program in, but *if written naively* has poor runtime
+performance. We can fix that by transpiling a subset of the language into
+a more performant, statically typed language.
 
-A second benefit is security. Writing security sensitive
-code in a low level language like C is error prone and could
-lead to privilege escalation. Specialized languages such as
-[wuffs](https://github.com/google/wuffs) exist to address this use
-case. py2many can be a more general purpose solution to the problem
+A second benefit is security. Writing security sensitive code in a low level language
+like C is error prone and could lead to privilege escalation.
+
+Specialized languages exist to address this use case, you may also want to
+look at [wuffs](https://github.com/google/wuffs).
+
+py2many can be a more general purpose solution to the problem
 where you can verify the source via unit tests before you transpile.
 
 A third potential use case is to accelerate python code by transpiling
@@ -39,17 +40,16 @@ Preliminary support exists for Julia, Kotlin, Nim, Go, Dart, V, and D.
 py2many can also emit Python 3 code that includes inferred type annotations,
 and revisions to the syntax intended to simplify parsing of the code.
 
-## History
+## History and Acknowledgments
 
 Based on Julian Konchunas' [pyrs](http://github.com/konchunas/pyrs).
 
 Based on Lukas Martinelli [Py14](https://github.com/lukasmartinelli/py14)
-and [Py14/python-3](https://github.com/ProgVal/py14/tree/python-3) branch by Valentin
-Lorentz.
+and [Py14/python-3](https://github.com/ProgVal/py14/tree/python-3) branch by Valentin Lorentz.
 
 ## Example
 
-Original Python version.
+Original Python code:
 
 ```python
 def fib(i: int) -> int:
@@ -77,7 +77,11 @@ https://github.com/adsharma/py2many/tree/main/tests/expected (fib*)
 
 Requirements:
 
-- Python 3.9+
+- Python 3.11+ (may work or not on older versions)
+
+Optional dependencies:
+
+- [jgo](https://github.com/scijava/jgo.git) - gets & runs prettyprinter for kotlin
 
 Local installation:
 
@@ -96,14 +100,14 @@ Add the py2many script to your $PATH and run:
 Transpiling:
 
 ```sh
-py2many --cpp=1 tests/cases/fib.py
-py2many --rust=1 tests/cases/fib.py
-py2many --julia=1 tests/cases/fib.py
-py2many --kotlin=1 tests/cases/fib.py
-py2many --nim=1 tests/cases/fib.py
-py2many --dart=1 tests/cases/fib.py
-py2many --go=1 tests/cases/fib.py
-py2many --dlang=1 tests/cases/fib.py
+py2many --lang=cpp tests/cases/fib.py
+py2many --lang=rust tests/cases/fib.py
+py2many --lang=julia tests/cases/fib.py
+py2many --lang=kotlin tests/cases/fib.py
+py2many --lang=nim tests/cases/fib.py
+py2many --lang=dart tests/cases/fib.py
+py2many --lang=go tests/cases/fib.py
+py2many --lang=dlang tests/cases/fib.py
 ```
 
 Compiling:

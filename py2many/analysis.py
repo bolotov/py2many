@@ -47,7 +47,7 @@ def is_ellipsis(node):
     return (
         isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Constant)
-        and node.value.value == ...
+        and node.value.value is ...
     )
 
 
@@ -55,7 +55,7 @@ class ReturnFinder(ast.NodeVisitor):
     returns = False
 
     def visit_Return(self, node):
-        if node.value != None:
+        if node.value is not None:
             self.returns = True
 
 

@@ -17,7 +17,7 @@ from .language import LanguageSettings
 from .mutability_transformer import detect_mutable_vars
 from .nesting_transformer import detect_nesting_levels
 from .raises_transformer import detect_raises
-from .registry import ALL_SETTINGS, FAKE_ARGS, _get_all_settings
+from .registry import ALL_SETTINGS, get_all_settings
 from .rewriters import (
     ComplexDestructuringRewriter,
     DocStringToCommentRewriter,
@@ -39,6 +39,23 @@ ROOT_DIR = PY2MANY_DIR.parent
 STDIN = "-"
 STDOUT = "-"
 CWD = Path.cwd()
+
+# Used to bootstrap available languages before full args are parsed
+FAKE_ARGS = argparse.Namespace(
+    indent=4,
+    no_prologue=False,
+    extension=False,         # used in rust/cpp transpilers
+    suffix="",               # default file suffix
+    comment_unsupported=False,
+    ignore_formatter_errors=False,
+    typpete=False,           # type guessing stuff
+    version=False,
+    project=None,
+    llm=False,
+    llm_model=None,
+)
+
+LANGS = get_all_settings(FAKE_ARGS)
 
 
 def core_transformers(tree, trees, args):
@@ -184,7 +201,7 @@ def _relative_to_cwd(absolute_path):
     return Path(os.path.relpath(absolute_path, CWD))
 
 
-def _get_output_path(filename, ext, outdir):
+def _get_output_path(filename, ext, outdir: Path):
     if filename.name == STDIN:
         return Path(STDOUT)
     directory = outdir / filename.parent
@@ -197,7 +214,7 @@ def _get_output_path(filename, ext, outdir):
     return output_path
 
 
-def _process_one(settings: LanguageSettings, filename: Path, outdir: str, args, env):
+def _process_one(settings: LanguageSettings, filename: Path, outdir: Path, args, env):
     """Transpile and reformat.
 
     Returns False if reformater failed.
@@ -222,7 +239,7 @@ def _process_one(settings: LanguageSettings, filename: Path, outdir: str, args, 
         finally:
             if tmp_name is not None:
                 os.remove(tmp_name)
-        return ({filename}, {filename})
+        return {filename}, {filename}
 
     if filename.resolve() == output_path.resolve() and not args.force:
         print(f"Refusing to overwrite {filename}. Use --force to overwrite")
@@ -327,7 +344,7 @@ def _process_many(
             if filename in successful and not _format_one(settings, output_path, env):
                 format_errors.add(Path(filename))
 
-    return (successful, format_errors)
+    return successful, format_errors
 
 
 def _process_dir(
@@ -376,19 +393,22 @@ def _process_dir(
         print(f"Failed to reformat: {len(format_errors)}")
     print(f"Failed to convert: {len(failures)}")
     print()
-    return (successful, format_errors, failures)
+    return successful, format_errors, failures
 
 
 def main(args=None, env=os.environ):
     parser = argparse.ArgumentParser()
-    LANGS = _get_all_settings(FAKE_ARGS)
 
     parser.add_argument(
+        "-l",
         "--lang",
         choices=LANGS.keys(),
         required=True,
-        help=f"Target language. Choices: {', '.join(LANGS.keys())}",
+        metavar="LANG",
+        help="Target language to transpile to.",
     )
+
+
     parser.add_argument("--outdir", default=None, help="Output directory")
     parser.add_argument(
         "-i",

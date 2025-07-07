@@ -12,16 +12,18 @@ from py2many.rewriters import InferredAnnAssignRewriter
 This module constructs ALL_SETTINGS from __init__.py of language backends.
 """
 
-# Now instead of hardcoded modules for target languages uses pathlib which is also bad
+from argparse import Namespace
 
-FAKE_ARGS = Mock(indent=4)  # TODO: Investigate this more
+from argparse import Namespace
+
+
+
+# FAKE_ARGS = Mock(indent=4, no_prologue=False)  # TODO: Investigate this more
 
 PY2MANY_DIR = pathlib.Path(__file__).parent
 PROJECT_ROOT = PY2MANY_DIR.parent  # project root directory
 TARGETS_DIR = PROJECT_ROOT / "targets"
 
-if str(TARGETS_DIR) not in sys.path:
-    sys.path.insert(0, str(TARGETS_DIR))
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -66,14 +68,14 @@ def discover_targets() -> Iterator[Tuple[str, Callable[..., Any]]]:
                 if hasattr(mod, "settings"):
                     yield target_path.name, mod.settings
             except ImportError as e:
-                print(f"Failed to import {target_path.name}: {e}")
+                print(f"Failed to import target: {target_path.name}: {e}")
 
 
 PYTHON_SETTINGS = {"python": python_settings, }
 ALL_SETTINGS = PYTHON_SETTINGS | {name: settings for name, settings in discover_targets()}
 
 
-def _get_all_settings(args: Any, env: Optional[Dict[str, str]] = None) \
+def get_all_settings(args: Any, env: Optional[Dict[str, str]] = None) \
         -> Dict[str, LanguageSettings]:
     """
     Build a dictionary mapping language names to their LanguageSettings instances.

@@ -3,10 +3,14 @@ import ast
 from .ast_helpers import get_id
 
 
-# Returns a string representation of the node
-def get_ann_repr(node, parse_func=None, default=None, sep=["[", "]"]):
+def get_ann_repr(node, parse_func=None, default=None, sep=None):
+    """ Returns a string representation of the node """
+    if sep is None:
+        sep = ["[", "]"]
+
     if node is None:
         return default
+
     if isinstance(node, str):
         if parse_func:
             return parse_func(node)

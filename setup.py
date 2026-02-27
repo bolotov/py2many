@@ -21,23 +21,29 @@ extras = {
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-packages = [
-    "py2many",
-    "pycpp",
-    "pyd",
-    "pydart",
-    "pygo",
-    "pyjl",
-    "pykt",
-    "pymojo",
-    "pynim",
-    "pyrs",
-    "pysmt",
-    "pyv",
-    "pyzig",
-]
-package_dir = {f"py2many.{pkg}": pkg for pkg in packages if pkg != "py2many"}
-package_dir["py2many"] = "py2many"
+# All backends that was a part of a package, some would be added back in
+# packages = [
+#     "py2many",
+#     "pycpp",  # this have become .../targets/cpp
+#     "pyd",
+#     "pydart",
+#     "pygo",
+#     "pyjl",
+#     "pykt",
+#     "pymojo",
+#     "pynim",
+#     "pyrs",   # this have become .../targets/rust
+#     "pysmt",
+#     "pyv",
+#     "pyzig",
+# ]
+
+package_dir = {
+    "py2many": "py2many",
+    "py2many.cpp": "targets/cpp",   # C++ 'backend' is now in 'targets/cpp'
+    "py2many.rust": "targets/rust",
+}
+
 packages = sorted(package_dir.keys())
 
 setup(

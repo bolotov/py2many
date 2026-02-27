@@ -51,7 +51,7 @@ class KotlinTranspilerPlugins:
         return f"floor({vargs[0]}).toInt()"
 
 
-# small one liners are inlined here as lambdas
+# small one-liners are inlined here as lambdas
 SMALL_DISPATCH_MAP = {
     "str": lambda n, vargs: f"{vargs[0]}.toString()" if vargs else '""',
     # TODO: strings use .length

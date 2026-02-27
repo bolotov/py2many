@@ -85,10 +85,6 @@ def _transpile(
     Transpile a single python translation unit (a python script) into
     target language
     """
-    if hasattr(args, "llm") and args.llm:
-        from .llm_transpile import llm_transpile
-
-        return llm_transpile(filenames, sources, settings, args)
     transpiler = settings.transpiler
     rewriters = settings.rewriters
     transformers = settings.transformers
@@ -362,8 +358,6 @@ def _process_dir(
         if settings.project_subdir is not None:
             outdir = outdir / settings.project_subdir
 
-    successful = []
-    failures = []
     input_paths = []
     for path in source.rglob("*.py"):
         if path.suffix != ".py":
@@ -408,8 +402,8 @@ def main(args=None, env=os.environ):
         help="Target language to transpile to.",
     )
 
-
     parser.add_argument("--outdir", default=None, help="Output directory")
+
     parser.add_argument(
         "-i",
         "--indent",
@@ -469,18 +463,6 @@ def main(args=None, env=os.environ):
     )
     parser.add_argument(
         "--project", default=True, help="Create a project when using directory mode"
-    )
-    parser.add_argument(
-        "--llm",
-        action="store_true",
-        default=False,
-        help="Use llm for transpiling",
-    )
-    parser.add_argument(
-        "--llm-model",
-        type=str,
-        default="",
-        help="LLM Model to use. Configurable other ways too",
     )
     args, rest = parser.parse_known_args(args=args)
 
@@ -543,3 +525,4 @@ def main(args=None, env=os.environ):
             rv = not (failures or format_errors)
         rv = 0 if rv is True else 1
         return rv
+    return None

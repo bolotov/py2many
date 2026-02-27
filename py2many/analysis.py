@@ -20,22 +20,24 @@ IGNORED_MODULE_SET = {
 }
 
 
-def add_imports(node):
+def add_imports(node) -> bool:
     """Provide context of imports Module"""
     return ImportTransformer().visit(node)
 
 
-def is_void_function(fun):
+def is_void_function(fun) -> bool:
+    """Checks if a function has a return statement with a value"""
     finder = ReturnFinder()
     finder.visit(fun)
     return not (finder.returns or fun.returns is not None)
 
 
-def is_global(target):
+def is_global(target) -> bool:
+    """Checks if the target is defined in the global scope (i.e., module level)"""
     return isinstance(target.scopes[-1], ast.Module)
 
 
-def is_mutable(scopes, target):
+def is_mutable(scopes, target) -> bool:
     for scope in scopes:
         if isinstance(scope, ast.FunctionDef):
             if target in scope.mutable_vars:
@@ -43,7 +45,7 @@ def is_mutable(scopes, target):
     return False
 
 
-def is_ellipsis(node):
+def is_ellipsis(node) -> bool:
     return (
         isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Constant)
@@ -54,9 +56,12 @@ def is_ellipsis(node):
 class ReturnFinder(ast.NodeVisitor):
     returns = False
 
-    def visit_Return(self, node):
+    def visit_Return(self, node) -> bool:
         if node.value is not None:
             self.returns = True
+        else:
+            self.generic_visit(node) # continue searching for return statements with values
+        return self.returns
 
 
 class FunctionTransformer(ast.NodeTransformer):

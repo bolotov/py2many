@@ -1,4 +1,14 @@
+"""
+Nim target language backend for py2many.
+
+Defines the `settings()` function that returns a configured LanguageSettings
+object used for transpiling Python code to Nim.
+"""
+
+
 import os
+
+from sympy.integrals.manualintegrate import rewriter
 
 from py2many.language import LanguageSettings
 
@@ -13,11 +23,11 @@ def settings(args, env=os.environ):
         nim_args["indent"] = args.indent
         nimpretty_args.append(f"--indent:{args.indent}")
     return LanguageSettings(
-        NimTranspiler(**nim_args),
-        ".nim",
-        "Nim",
-        ["nimpretty", *nimpretty_args],
-        None,
-        [NimNoneCompareRewriter()],
-        [infer_nim_types],
+        transpiler=NimTranspiler(**nim_args),
+        ext=".nim",
+        display_name="Nim",
+        formatter=["nimpretty", *nimpretty_args],
+        # None,  # <--- IMPORTANT: IDK, the fuck is that, something is 'None'
+        rewriters=[NimNoneCompareRewriter()],
+        transformers=[infer_nim_types],
     )

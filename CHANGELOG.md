@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2025-Feb-27
+
+- Cleanup
+- Moved some 'backends' to 'targets' folder
+
 ## [0.6] - 2025-01-01
 
 - Mojo backend

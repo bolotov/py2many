@@ -112,7 +112,7 @@ class DeclarationExtractor(ast.NodeVisitor):
     def visit_Assign(self, node):
         target = node.targets[0]
         if self.is_member(target):
-            if target.attr not in self.member_assignments:
+            if target.attr not in self.member_assignments:  # WARNING: Unresolved attribute reference 'attr' for class 'expr'
                 self.member_assignments[target.attr] = node.value
         else:
             node.class_assignment = True

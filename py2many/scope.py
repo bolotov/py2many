@@ -19,7 +19,8 @@ class ScopeMixin:
     scopes = []
 
     @contextmanager
-    def enter_scope(self, node):
+    def enter_scope(self, node) -> Iterable[None]:
+        """Context manager for entering a new scope."""
         if self._is_scopable_node(node):
             self.scopes.append(node)
             yield
@@ -60,6 +61,7 @@ class ScopeList(list):
             for var in getattr(scope, var_attr):
                 if get_id(var) == lookup:
                     return var
+            return None
 
         for scope in reversed(self):
             defn = None
@@ -77,6 +79,7 @@ class ScopeList(list):
                     return None
             if defn:
                 return defn
+        return None
 
     def find_import(self, lookup):  # pragma: no cover
         """

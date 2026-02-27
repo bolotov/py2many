@@ -10,6 +10,16 @@ from py2many.inference import get_inferred_type
 from py2many.scope import ScopeList
 from py2many.tracer import find_node_by_type
 
+# FIXME: You fucked up Alex Martelli`s code. Rot in hell.
+#   IDEAS:
+#   - use truth table or config dictionary instead of hard-coding languages ...
+#   .....or maybe have a language class that has these properties?
+#  .
+#   - maybe have a separate rewriter for each language that inherits from a common base class
+#   and overrides the methods that need to be different?
+#  .
+#   - or a functional way to have type of language to be inherited from a template but defined in a
+#   ...... language folder
 
 class InferredAnnAssignRewriter(ast.NodeTransformer):
     def visit_Assign(self, node):
@@ -61,6 +71,10 @@ class InferredAnnAssignRewriter(ast.NodeTransformer):
 
 
 class ComplexDestructuringRewriter(ast.NodeTransformer):
+    """
+    Rewrites complex destructuring assignments (e.g. a, (b, c) = foo())
+     into simpler ones that are easier to transpile to C-like languages
+    """
     def __init__(self, language):
         super().__init__()
         self._disable = False
@@ -248,13 +262,12 @@ class DocStringToCommentRewriter(ast.NodeTransformer):
         self._docstrings = set()
         self._docstring_parent = {}
 
-    def _get_doc_node(self, node) -> Optional[ast.AST]:
+    @staticmethod
+    def _get_doc_node(node) -> Optional[ast.AST]:
         if not (node.body and isinstance(node.body[0], ast.Expr)):
             return None
         node = node.body[0].value
-        if isinstance(node, ast.Str):
-            return node
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
             return node
         return None
 
@@ -293,7 +306,8 @@ class PrintBoolRewriter(ast.NodeTransformer):
         super().__init__()
         self._language = language
 
-    def _do_other_rewrite(self, node) -> ast.AST:
+    @staticmethod
+    def _do_other_rewrite(node) -> ast.AST:
         ifexpr = cast(
             ast.Expr, create_ast_node("'True' if true else 'False'", node)
         ).value
@@ -306,7 +320,8 @@ class PrintBoolRewriter(ast.NodeTransformer):
         return node
 
     # Go can't handle IfExpr in print. Handle it differently here
-    def _do_go_rewrite(self, node) -> ast.AST:
+    @staticmethod
+    def _do_go_rewrite(node) -> ast.AST:
         if_stmt = create_ast_node(
             textwrap.dedent(
                 """\

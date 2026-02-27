@@ -1,4 +1,5 @@
 # Trace object types that are inserted into Python list.
+# Used to generate std::vector<T> instead of std::vector<auto> when possible.
 
 import ast
 from collections.abc import Iterable
@@ -9,7 +10,11 @@ from py2many.clike import CLikeTranspiler
 from py2many.exceptions import AstNotImplementedError
 
 
-# TODO: is it slow? is it correct?
+# TODO: is it slow? is it correct? 
+# A SLOW and hacky way to get the type of values in lists.
+# We want to be able to generate C++ code like std::vector<int> instead of std::vector<auto> when we
+# can infer the type of the values in the list. This is done by looking at the first assignment
+# to the list and then looking at the type of the value being assigned.
 def _lookup_class_or_module(name, scopes) -> Optional[ast.ClassDef]:
     for scope in scopes:
         if not isinstance(scope.body, Iterable):
@@ -25,12 +30,12 @@ def _lookup_class_or_module(name, scopes) -> Optional[ast.ClassDef]:
     return None
 
 
-def is_class_or_module(name, scopes):
+def is_class_or_module(name, scopes) -> bool:
     entry = _lookup_class_or_module(name, scopes)
     return entry is not None
 
 
-def is_enum(name, scopes):
+def is_enum(name, scopes) -> bool:
     entry = _lookup_class_or_module(name, scopes)
     if entry and hasattr(entry, "bases"):
         bases = {get_id(base) for base in entry.bases}
@@ -39,7 +44,7 @@ def is_enum(name, scopes):
     return False
 
 
-def is_self_arg(name, scopes):
+def is_self_arg(name, scopes) -> bool:
     for scope in scopes:
         for entry in scope.body:
             if isinstance(entry, ast.FunctionDef):
@@ -50,7 +55,7 @@ def is_self_arg(name, scopes):
     return False
 
 
-def is_list(node):
+def is_list(node) -> bool:
     """Check if a node was assigned as a list"""
     if isinstance(node, ast.List):
         return True
@@ -84,8 +89,8 @@ def find_node_by_type(node_type, scopes):
     return c_node
 
 
-# Finds a node in the given body if it satisfies fn
 def find_in_body(body, fn):
+    """Searches for the first node in body that satisfies fn (search in reverse order)"""
     for i in range(len(body) - 1, -1, -1):
         node = body[i]
         if fn(node):
@@ -258,7 +263,8 @@ def is_list_addition(node):
     )
 
 
-def is_recursive(fun):
+def is_recursive(fun) -> bool:
+    """Check if a function is recursive by looking for calls to itself in its body."""
     finder = RecursionFinder()
     finder.visit(fun)
     return finder.recursive

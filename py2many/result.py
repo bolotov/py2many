@@ -12,9 +12,9 @@ features that are redundant or belong in a different layer.
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from dataclasses import dataclass
-from typing import Any, Generic, ParamSpec, TypeVar, final
+from typing import Any, Generic, ParamSpec, TypeGuard, TypeVar, final
 
 # ---------------------------------------------------------------------------
 # Type variables
@@ -587,3 +587,77 @@ def as_async_result(
         return wrapper  # type: ignore[return-value]
 
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# Collection helpers
+# ---------------------------------------------------------------------------
+
+def collect(results: Iterable[Result[T, E]]) -> Result[list[T], E]:
+    """
+    Sequence an iterable of Results into a Result of list.
+
+    Returns ``Ok`` of all values if every element is ``Ok``, or the first
+    ``Err`` encountered — remaining elements are not evaluated (short-circuits):
+
+        collect([Ok(1), Ok(2), Ok(3)])        →  Ok([1, 2, 3])
+        collect([Ok(1), Err("x"), Ok(3)])     →  Err("x")
+        collect(parse(s) for s in strings)    →  Result[list[int], str]
+
+    For the "process everything and split" variant see ``partition()``.
+    """
+    values: list[T] = []
+    for r in results:
+        if isinstance(r, Err):
+            return r  # type: ignore[return-value]
+        assert isinstance(r, Ok)
+        values.append(r.value)
+    return Ok(values)  # type: ignore[return-value]
+
+
+def partition(results: Iterable[Result[T, E]]) -> tuple[list[T], list[E]]:
+    """
+    Split an iterable of Results into ``(values, errors)`` — processes every
+    element, nothing is short-circuited:
+
+        oks, errs = partition([Ok(1), Err("x"), Ok(2), Err("y")])
+        # oks == [1, 2],  errs == ["x", "y"]
+
+    Prefer ``collect()`` when the first error should abort processing.
+    """
+    oks:  list[T] = []
+    errs: list[E] = []
+    for r in results:
+        if isinstance(r, Ok):
+            oks.append(r.value)
+        else:
+            assert isinstance(r, Err)
+            errs.append(r.error)
+    return oks, errs
+
+
+# ---------------------------------------------------------------------------
+# TypeGuard helpers — for filter() and other higher-order functions
+# ---------------------------------------------------------------------------
+
+def is_ok(result: Result[T, E]) -> TypeGuard[Ok[T, E]]:
+    """
+    Type guard that narrows ``Result[T, E]`` to ``Ok[T, E]``.
+
+    Enables typed ``filter()`` and list comprehensions without ``isinstance``:
+
+        oks: list[Ok[int, str]] = list(filter(is_ok, results))
+        vals: list[int]         = [r.value for r in results if is_ok(r)]
+    """
+    return isinstance(result, Ok)
+
+
+def is_err(result: Result[T, E]) -> TypeGuard[Err[T, E]]:
+    """
+    Type guard that narrows ``Result[T, E]`` to ``Err[T, E]``.
+
+    Mirror of ``is_ok`` over the error dimension:
+
+        errs: list[Err[int, str]] = list(filter(is_err, results))
+    """
+    return isinstance(result, Err)

@@ -1,9 +1,11 @@
 import ast
+from typing import Any, Iterable
 
 from .ast_helpers import get_id
 
-# FIXME: I believe that whatever following line wants to achieve - it can be achieved better and in more functional way
-get_id  # quiten pyflakes; this should when code is updated to use ast_helpers
+# Intentionally kept to avoid breaking external imports that rely on this symbol.
+_ = get_id
+
 
 IGNORED_MODULE_SET = {
     "typing",
@@ -21,67 +23,52 @@ IGNORED_MODULE_SET = {
 }
 
 
-def add_imports(node) -> bool:
-    """Provide context of imports Module"""
+def add_imports(node: ast.AST) -> ast.AST:
+    """Populate scope.imports with imported symbols."""
     return ImportTransformer().visit(node)
 
 
-def is_void_function(fun) -> bool:
+def is_void_function(fun: ast.FunctionDef) -> bool:
     """
-    Checks if a function has a return statement with a value
+    Return True if the function does not return a value.
 
-    :param fun: The AST node representing the function to check
-    :return: True if the function has a return statement with a value, False otherwise  
+    A function is considered void if:
+    - it contains no `return <value>` statements, and
+    - it has no return annotation.
     """
     finder = ReturnFinder()
     finder.visit(fun)
-    return not (finder.returns or fun.returns is not None)
+    return not finder.returns and fun.returns is None
 
 
-def is_global(target) -> bool:
+def is_global(target: Any) -> bool:
     """
-    Checks if the target is defined in the global scope (i.e., module level)
-
-    :param target: The AST node representing the variable or function to check
-    :return: True if the target is defined in the global scope, False otherwise
+    Return True if target belongs to module-level scope.
     """
-    return isinstance(target.scopes[-1], ast.Module)
+    scopes = getattr(target, "scopes", None)
+    if not scopes:
+        return False
+    return isinstance(scopes[-1], ast.Module)
 
 
-def is_mutable(scopes, target) -> bool:
+def is_mutable(scopes: Iterable[Any], target: Any) -> bool:
     """
-    Checks if the target is mutable
-    (i.e., defined in a function scope and assigned to within that scope)
+    Return True if target is marked mutable inside a function scope.
 
-    #  IT SEEMS LIKE IT WILL ALWAYS GO 'false', look **WARNING** in a body of a function
-    #  From ast module docs:
-    #
-    # class ast.FunctionDef(name, args, body, decorator_list, returns, type_comment, type_params)¶
-    # A function definition.
-    #
-    # name is a raw string of the function name.
-    # args is an arguments node.
-    # body is the list of nodes inside the function.
-    # decorator_list is the list of decorators to be applied, stored outermost first (i.e. the first in the list will be applied last).
-    # returns is the return annotation.
-    # type_params is a list of type parameters.
-    # type_comment
-    # type_comment is an optional string with the type annotation as a comment.
+    The transformer that detects mutability is responsible for
+    attaching `mutable_vars` to FunctionDef nodes.
     """
     for scope in scopes:
         if isinstance(scope, ast.FunctionDef):
-            if target in scope.mutable_vars: # WARNING: "FunctionDef" has no attribute "mutable_vars"
+            mutable = getattr(scope, "mutable_vars", None)
+            if mutable and target in mutable:
                 return True
     return False
 
 
-def is_ellipsis(node) -> bool:
+def is_ellipsis(node: ast.AST) -> bool:
     """
-    Checks if the node is an ellipsis literal (i.e., ...).
-    This is used to identify function bodies that are not implemented yet.
-
-    :param node: The AST node to check
-    :return: True if the node is an ellipsis literal (i.e., ...), False otherwise
+    Return True if node represents an ellipsis literal (`...`).
     """
     return (
             isinstance(node, ast.Expr)
@@ -90,163 +77,157 @@ def is_ellipsis(node) -> bool:
     )
 
 
-class ReturnFinder(ast.NodeVisitor): # FIXME: I am not sure wherever I have fixed that or not
-    def __init__(self):
-        self.returns = False
+class ReturnFinder(ast.NodeVisitor):
+    """
+    Detect whether a function contains a `return` with a value.
+    """
 
+    def __init__(self) -> None:
+        self.returns: bool = False
 
-    def visit_Return(self, node) -> bool:
-        """Checks if a return statement has a value"""
+    def visit_Return(self, node: ast.Return) -> None:
         if node.value is not None:
             self.returns = True
-        else:
-            self.generic_visit(node)  # continue searching for return statements with values
-        return self.returns  # Return True if a return statement with a value is found, otherwise False
-#       ^
-#       Do we need this instead (why?):
-#       def visit_Return(self, node):
-#           if node.value is not None:
-#               self.returns = True
-#           self.generic_visit(node)
+        self.generic_visit(node)
+
 
 class FunctionTransformer(ast.NodeTransformer):
     """
-    Tracks defined functions in scope
+    Track defined functions within scoped nodes.
+
+    Relies on nodes having a `scopes` attribute injected earlier
+    by scope analysis.
     """
 
-    def visit_FunctionDef(self, node):
-        """
-        Visits a function definition node and adds it to the list of defined functions in the current scope.
-
-        Parameters:
-            node AST node representing a function definition
-
-        Returns:
-            AST node with updated defined functions in scope
-        """
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
         node.defined_functions = []
-        node.scopes[-2].defined_functions.append(node) # WARNING: Unresolved attribute reference 'scopes' for class 'FunctionDef'
+        scopes = getattr(node, "scopes", None)
+        if scopes and len(scopes) >= 2:
+            parent_scope = scopes[-2]
+            defined = getattr(parent_scope, "defined_functions", None)
+            if defined is not None:
+                defined.append(node)
         self.generic_visit(node)
         return node
 
-    def _visit_Scoped(self, node):
-        """
-        Visits a scoped block node and initializes the list of defined functions in that scope.
-
-        :param node AST node representing a scoped block (e.g., module, class, for loop, if statement, with statement):
-        :return AST node with updated defined functions in scope:
-        """
+    def _visit_scoped(self, node: ast.AST) -> ast.AST:
         node.defined_functions = []
         self.generic_visit(node)
         return node
 
-    # FIXME: methods below have wird issues that I do not understand, fix and **EXPLAIN**
+    def visit_Module(self, node: ast.Module) -> ast.AST:
+        return self._visit_scoped(node)
 
-    def visit_Module(self, node):
-        return self._visit_Scoped(node) # WARNING: Type 'Module' doesn't have expected attribute 'defined_functions'
+    def visit_ClassDef(self, node: ast.ClassDef) -> ast.AST:
+        return self._visit_scoped(node)
 
-    def visit_ClassDef(self, node):
-        return self._visit_Scoped(node) # WARNING: Type 'ClassDef' doesn't have expected attribute 'defined_functions'
+    def visit_For(self, node: ast.For) -> ast.AST:
+        return self._visit_scoped(node)
 
-    def visit_For(self, node):
-        return self._visit_Scoped(node) # WARNING: Type 'For' doesn't have expected attribute 'defined_functions'
+    def visit_If(self, node: ast.If) -> ast.AST:
+        return self._visit_scoped(node)
 
-    def visit_If(self, node):
-        return self._visit_Scoped(node) # WARNING: Type 'If' doesn't have expected attribute 'defined_functions'
+    def visit_With(self, node: ast.With) -> ast.AST:
+        return self._visit_scoped(node)
 
-    def visit_With(self, node):
-        return self._visit_Scoped(node) # WARNING: Type 'With' doesn't have expected attribute 'defined_functions'
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.AST:
+        scopes = getattr(node, "scopes", None)
+        if not scopes:
+            return node
 
-    def visit_ImportFrom(self, node):
-        for name in node.names:
-            if node.module not in IGNORED_MODULE_SET:
-                # FIXME: does line below attempts to set unexisting properyt? What should happen instead? any functional ways?
-                node.scopes[-1].defined_functions.append(name) # WARNING: Unresolved attribute reference 'scopes' for class 'ImportFrom'
+        current_scope = scopes[-1]
+        defined = getattr(current_scope, "defined_functions", None)
+        if defined is None:
+            return node
+
+        if node.module not in IGNORED_MODULE_SET:
+            for name in node.names:
+                defined.append(name)
+
         return node
 
 
 class CalledWithTransformer(ast.NodeTransformer):
     """
-    Tracks whether variables or functions get
-    used as arguments of other functions
+    Track variables and functions that are used as call arguments.
     """
 
-    def visit_Assign(self, node):
+    def visit_Assign(self, node: ast.Assign) -> ast.AST:
         for target in node.targets:
-            target.called_with = []
-        return node
+            setattr(target, "called_with", [])
+        return self.generic_visit(node)
 
-    def visit_FunctionDef(self, node):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
         node.called_with = []
-        self.generic_visit(node)
-        return node
+        return self.generic_visit(node)
 
-    def visit_Call(self, node):
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        scopes = getattr(node, "scopes", None)
+        if not scopes:
+            return self.generic_visit(node)
+
         for arg in node.args:
             if isinstance(arg, ast.Name):
-                var = node.scopes.find(arg.id) # WARNING: Unresolved attribute reference 'scopes' for class 'Call'
-                var.called_with.append(node)
-        self.generic_visit(node)
-        return node
+                scope_manager = scopes
+                finder = getattr(scope_manager, "find", None)
+                if callable(finder):
+                    var = finder(arg.id)
+                    if var is not None:
+                        called = getattr(var, "called_with", None)
+                        if called is not None:
+                            called.append(node)
+        return self.generic_visit(node)
 
 
 class AttributeCallTransformer(ast.NodeTransformer):
-    """Tracks attribute function calls on variables"""
+    """
+    Track attribute calls on variables (e.g., x.foo()).
+    """
 
-    def visit_Assign(self, node):
-        """
-
-        :param node:
-        :return:
-        """
+    def visit_Assign(self, node: ast.Assign) -> ast.AST:
         for target in node.targets:
-            target.calls = []
-        return node
+            setattr(target, "calls", [])
+        return self.generic_visit(node)
 
-    def visit_Call(self, node):
-        """
-
-        :param node:
-        :return:
-        """
-        if isinstance(node.func, ast.Attribute):
-            # WARNING (regarding *NEXT* line): Unresolved attribute reference 'id' for class 'expr'
-            var = node.scopes.find(node.func.value.id) # WARNING: Unresolved attribute reference 'scopes' for class 'Call'
-            var.calls.append(node)
-        return node
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        scopes = getattr(node, "scopes", None)
+        if (
+                scopes
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+        ):
+            finder = getattr(scopes, "find", None)
+            if callable(finder):
+                var = finder(node.func.value.id)
+                if var is not None:
+                    calls = getattr(var, "calls", None)
+                    if calls is not None:
+                        calls.append(node)
+        return self.generic_visit(node)
 
 
 class ImportTransformer(ast.NodeTransformer):
     """
-    Adds imports to scope blocks, so that we can track which
-    variables are imported from which modules
+    Attach imported symbols to scope.imports.
     """
 
-    def visit_ImportFrom(self, node):
-        """
-        Visits an import statement and adds the imported names to the list of imports in the current scope.
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.AST:
+        scopes = getattr(node, "scopes", None)
+        if not scopes:
+            return node
 
-        :param node:
-        :return:
-        """
+        current_scope = scopes[-1]
+        imports = getattr(current_scope, "imports", None)
+        if imports is None:
+            return node
+
         for name in node.names:
             name.imported_from = node
-            scope = name.scopes[-1] # WARNING: Unresolved attribute reference 'scopes' for class 'alias'
-            if hasattr(scope, "imports"):
-                scope.imports.append(name)
+            imports.append(name)
+
         return node
 
-    def visit_Module(self, node):
-        """
-        Initializes the list of imports in the module scope and
-        visits the module body.
-    
-        Parameter:
-            node AST node representing the module
-
-        Returns
-            AST node with updated imports in module scope
-        """
+    def visit_Module(self, node: ast.Module) -> ast.AST:
         node.imports = []
         self.generic_visit(node)
         return node

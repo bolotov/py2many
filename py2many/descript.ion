@@ -1,3 +1,5 @@
+rewriters                 AST rewriters for various Python-to-X transformations.
+
 __init__.py               Package marker; exposes version.
 __main__.py               Actual CLI entrypoint for py2many.
 analysis.py               AST analysis utilities and import context processing.
@@ -21,7 +23,6 @@ python_transformer.py     Python code generator and main rewriter.
 raises_transformer.py     Detects exception-raising in function ASTs.
 registry.py               FIXME Language backend registry; imports all target settings.
 result.py                 Rust-like Result type for functional-style error handling.
-rewriters.py              AST rewriters for various Python-to-X transformations.
 scope.py                  Scope/context tracking for AST nodes.
 smt.py                    Dummy SMT (satisfiability modulo theories) interfaces.
 toposort_modules.py       Topological sort for Python modules (import dependencies).

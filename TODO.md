@@ -16,6 +16,14 @@
 
 -----
 
+- js2py as front (ast producer) for py2many. Problems and solutions:
+  - Js2Py wraps everything in a pyjs object to preserve JS behavior
+     (like null vs undefined).
+  - a small AST Walker (using ast.NodeTransformer) that would replace
+    for example ``pyjs.lib.Number(5)`` with simply ``5``.
+    This could make the code transformation much cleaner.
+  - Truth-ines solver for js.
+
 - Maybe migrate Dart from use of sprintf to dart-format and modern string
   interpolation ${} syntax
 

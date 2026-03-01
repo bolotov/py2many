@@ -80,11 +80,19 @@ symbols = {
     ast.In: "in",
 }
 
+
 _AUTO = "auto"
 _AUTO_INVOKED = "auto()"
 
-
-logger = logging.Logger("py2many")
+logger = logging.getLogger("py2many")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(name)s: %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
 
 
 def class_for_typename(typename, default_type, locals=None) -> Union[str, object]:
@@ -108,8 +116,8 @@ def class_for_typename(typename, default_type, locals=None) -> Union[str, object
         if not isinstance(typeclass, (type, type(open), type(class_for_typename))):
             return typeclass.__class__
         return typeclass
-    except (NameError, SyntaxError, AttributeError, TypeError):
-        logger.info(f"could not evaluate {typename}")
+    except (NameError, SyntaxError, AttributeError, TypeError) as e:
+        logger.debug(f"Could not evaluate typename '{typename}': {e}")
         return default_type
 
 
@@ -126,8 +134,8 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     builtin_constants = frozenset(["True", "False"])
     _default_type = _AUTO
-    _type_map = {}
-    _container_type_map = {}
+    _type_map: Dict[Any, str] = {}
+    _container_type_map: Dict[str, str] = {}
 
     def __init__(self):
         """Note __init__ is called in ._reset() to reset the transpiler state."""
@@ -204,10 +212,18 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     @classmethod
     def _map_type(cls, typename, lifetime=LifeTime.UNKNOWN) -> str:
+        if typename is None:
+            return cls._default_type
+
         if isinstance(typename, list):
             raise NotImplementedError(f"{typename} not supported in this context")
         typeclass = class_for_typename(typename, cls._default_type)
-        return cls._type_map.get(typeclass, typename)
+        result = cls._type_map.get(typeclass, typename)
+        if result == typename:
+            logger.debug(
+                f"[{cls.__name__}] No type mapping for '{typename}', using fallback."
+            )
+        return result
 
     @classmethod
     def _map_types(cls, typenames: List[str]) -> List[str]:

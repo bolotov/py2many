@@ -5,7 +5,6 @@ Defines the `settings()` function that returns a configured LanguageSettings
 object used for transpiling Python code to Nim.
 """
 
-
 import os
 
 from sympy.integrals.manualintegrate import rewriter
@@ -15,6 +14,12 @@ from py2many.language import LanguageSettings
 from .inference import infer_nim_types
 from .transpiler import NimNoneCompareRewriter, NimTranspiler
 
+# Regarding topy2many/rewriters.py in this language
+#
+# Following rewriters are likely skipped for dart:
+# - StrStrRewriter
+# - IgnoredAssignRewriter
+# 
 
 def settings(args, env=os.environ):
     nim_args = {}

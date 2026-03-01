@@ -5,6 +5,11 @@ from py2many.ast_helpers import get_id
 
 
 class DeclarationExtractor(ast.NodeVisitor):
+    """
+    Python AST traversal  of a class definition to extract
+    member declarations, including their types and default values.
+    It also identifies dataclasses and handles annotated assignments.
+    """
     def __init__(self, transpiler):
         self.transpiler = transpiler
         # maps name -> (type, default_value)
@@ -37,6 +42,7 @@ class DeclarationExtractor(ast.NodeVisitor):
         return typed_members
 
     def get_declarations_with_defaults(self):
+        """Returns a dictionary of member names to their types and default values."""
         typed_members = self.annotated_members
         for member, var in self.member_assignments.items():
             if member in self.annotated_members:
@@ -55,6 +61,7 @@ class DeclarationExtractor(ast.NodeVisitor):
         return typed_members
 
     def visit_ClassDef(self, node: ast.ClassDef):
+        """Extracts class member declarations and identifies dataclasses."""
         decorators = [get_id(d) for d in node.decorator_list]
         if len(node.decorator_list) > 0 and "dataclass" in decorators:
             node.is_dataclass = True
@@ -84,6 +91,7 @@ class DeclarationExtractor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node, dataclass=False):
+        """Visits annotated assignments to extract type information and default values for class members."""
         target = node.target
         target_id = get_id(target)
         if target_id is None:

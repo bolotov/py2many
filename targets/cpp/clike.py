@@ -143,8 +143,8 @@ class CLikeTranspiler(CommonCLikeTranspiler):
 
     def __init__(self):
         super().__init__()
-        CommonCLikeTranspiler._type_map = PYCPP_TYPE_MAP
-        CommonCLikeTranspiler._container_type_map = self.CONTAINER_TYPE_MAP
+        self._type_map = PYCPP_TYPE_MAP
+        self._container_type_map = self.CONTAINER_TYPE_MAP
 
     def _check_keyword(self, name):
         if name in cpp_keywords:

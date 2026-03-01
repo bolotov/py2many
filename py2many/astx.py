@@ -1,3 +1,19 @@
+"""
+Extended AST node dataclasses with extra metadata.
+
+Defines extended AST node dataclasses that inherit from the standard `ast`
+module's node classes.
+
+These extended classes include additional fields for metadata that can
+be used during the AST transformation and code generation processes.
+
+The extra metadata includes information about variable lifetimes, whether
+a class is a dataclass, mutable variables in functions, and more.
+
+This allows for better and more informed transformations and optimizations
+when converting Python code to other languages.
+"""
+
 import ast
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -7,6 +23,23 @@ from typing import List, Optional, Tuple
 class LifeTime(IntEnum):
     UNKNOWN = 0
     STATIC = 1
+
+
+class ASTxBlock(ast.stmt):
+    """
+    Synthetic block node used as an internal container
+    for multiple statements.
+
+    This node does not exist in Python syntax.
+    It is used purely inside the transpilation pipeline.
+    """
+
+    _fields = ("body",)
+
+    def __init__(self, body: List[ast.stmt]) -> None:
+        super().__init__()
+        self.body = body
+        self.synthetic = True
 
 
 @dataclass

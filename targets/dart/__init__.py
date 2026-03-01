@@ -11,6 +11,15 @@ import os
 from py2many.language import LanguageSettings
 from .transpiler import DartIntegerDivRewriter, DartTranspiler
 
+# Regarding topy2many/rewriters.py in this language
+#
+# Following rewriters are likely skipped for dart:
+# - StrStrRewriter
+#
+#  Check followiing rewriters for dart:
+# - RemoveTypeCommentsRewriter (because of type annotations in dart)
+# - DocStringToCommentRewriter (because of docstrings in dart)
+# - RemovePassRewriter (because of pass statements in dart)
 
 def settings(args, env=os.environ):
     return LanguageSettings(
@@ -20,3 +29,4 @@ def settings(args, env=os.environ):
         formatter=["dart", "format"],
         post_rewriters=[DartIntegerDivRewriter()],
     )
+

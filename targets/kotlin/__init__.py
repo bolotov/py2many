@@ -10,6 +10,10 @@ from py2many.language import LanguageSettings
 from .inference import infer_kotlin_types
 from .transpiler import KotlinBitOpRewriter, KotlinPrintRewriter, KotlinTranspiler
 
+# Regarding topy2many/rewriters.py in this language
+#
+# Following rewriters are likely skipped for dart:
+# - StrStrRewriter
 
 def settings(args, env=os.environ) -> LanguageSettings:
     return LanguageSettings(

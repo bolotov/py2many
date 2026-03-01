@@ -18,18 +18,31 @@ from .mutability_transformer import detect_mutable_vars
 from .nesting_transformer import detect_nesting_levels
 from .raises_transformer import detect_raises
 from .registry import ALL_SETTINGS, get_all_settings
-from .rewriters import (
-    ComplexDestructuringRewriter,
-    DocStringToCommentRewriter,
-    FStringJoinRewriter,
-    IgnoredAssignRewriter,
-    LoopElseRewriter,
-    PrintBoolRewriter,
-    PythonMainRewriter,
-    StrStrRewriter,
-    UnpackScopeRewriter,
-    WithToBlockTransformer,
-)
+# from .rewriters import (
+#     ComplexDestructuringRewriter,
+#     DocStringToCommentRewriter,
+#     FStringJoinRewriter,
+#     IgnoredAssignRewriter,
+#     LoopElseRewriter,
+#     PrintBoolRewriter,
+#     PythonMainRewriter,
+#     StrStrRewriter,
+#     UnpackScopeRewriter,
+#     WithToBlockTransformer,
+# )
+# -----
+# FIXME: IMPORTANT: stuff that uses rewriters needs to be moved out from CLI
+from .rewriters.loop_else import LoopElseRewriter
+from .rewriters.unpack_scope import UnpackScopeRewriter
+from .rewriters.ignored_assign import IgnoredAssignRewriter
+from .rewriters.print_bool import PrintBoolRewriter
+from .rewriters.doc_string_to_comment import DocStringToCommentRewriter
+from .rewriters.f_string_join import FStringJoinRewriter
+from .rewriters.str_str import StrStrRewriter
+from .rewriters.with_to_block_transformer import WithToBlockTransformer
+from .rewriters.python_main import PythonMainRewriter
+from .rewriters.complex_destructuring import ComplexDestructuringRewriter
+# -----
 from .scope import add_scope_context
 from .toposort_modules import toposort
 from .version import __version__
@@ -44,11 +57,11 @@ CWD = Path.cwd()
 FAKE_ARGS = argparse.Namespace(
     indent=4,
     no_prologue=False,
-    extension=False,         # used in rust/cpp transpilers
-    suffix="",               # default file suffix
+    extension=False,  # used in rust/cpp transpilers
+    suffix="",  # default file suffix
     comment_unsupported=False,
     ignore_formatter_errors=False,
-    typpete=False,           # type guessing stuff
+    typpete=False,  # type guessing stuff
     version=False,
     project=None,
     llm=False,
@@ -75,11 +88,11 @@ def core_transformers(tree, trees, args):
 
 
 def _transpile(
-    filenames: List[Path],
-    sources: List[str],
-    settings: LanguageSettings,
-    args: Optional[argparse.Namespace] = None,
-    _suppress_exceptions=Exception,
+        filenames: List[Path],
+        sources: List[str],
+        settings: LanguageSettings,
+        args: Optional[argparse.Namespace] = None,
+        _suppress_exceptions=Exception,
 ):
     """
     Transpile a single python translation unit (a python script) into
@@ -92,7 +105,7 @@ def _transpile(
     tree_list = []
     for filename, source in zip(filenames, sources):
         tree = ast.parse(source)
-        tree.__file__ = filename
+        tree.__file__ = filename  # WARNING: Module has no attribute "__file__"
         tree_list.append(tree)
     trees = toposort(tree_list)
     topo_filenames = [t.__file__ for t in trees]
@@ -101,7 +114,7 @@ def _transpile(
         ComplexDestructuringRewriter(language),
         PythonMainRewriter(settings.transpiler._main_signature_arg_names),
         FStringJoinRewriter(language),
-        DocStringToCommentRewriter(language),
+        DocStringToCommentRewriter(),  # Removed 'language' paramater
         WithToBlockTransformer(language),
         IgnoredAssignRewriter(language),
     ]
@@ -142,7 +155,7 @@ def _transpile(
 
 
 def _transpile_one(
-    trees, tree, transpiler, rewriters, transformers, post_rewriters, args
+        trees, tree, transpiler, rewriters, transformers, post_rewriters, args
 ):
     # This is very basic and needs to be run before and after
     # rewrites. Revisit if running it twice becomes a perf issue
@@ -182,8 +195,16 @@ def _transpile_one(
 
 
 @lru_cache(maxsize=100)
-def _process_one_data(source_data, filename, settings):
-    return _transpile([filename], [source_data], settings)[0][0]
+def _process_one_data(source_data, filename,
+                      settings) -> str:  # FIXME: it's better to rename this to _process_one_str or something to be more explicit about the arguments instead of relying on settings
+    """
+    NOTE: it's most likely only used in _process_one()
+    Reusable logic for processing a single file's data, used in both file and stdin cases. Caches results to speed up repeated calls with the same data, which can happen in some of the tests.
+
+    It caches the results based on the source data, filename, and settings. The filename is included in the cache key to allow for different error messages that include the filename, even if the source data is the same. The settings are included in the cache key to allow for different outputs based on different settings, such as whether to comment out unsupported constructs or not.
+    """
+    return _transpile([filename], [source_data], settings)[0][
+        0]  # FIXME: it's better to refactor this to be more explicit about the arguments instead of relying on settings
 
 
 def _create_cmd(parts, filename, **kw):
@@ -309,7 +330,7 @@ FileSet = Set[Path]
 
 
 def _process_many(
-    settings, basedir, filenames, outdir, env=None, _suppress_exceptions=Exception
+        settings, basedir, filenames, outdir, env=None, _suppress_exceptions=Exception
 ) -> Tuple[FileSet, FileSet]:
     """Transpile and reformat many files."""
 
@@ -344,7 +365,7 @@ def _process_many(
 
 
 def _process_dir(
-    settings, source, outdir, project, env=None, _suppress_exceptions=Exception
+        settings, source, outdir, project, env=None, _suppress_exceptions=Exception
 ):
     print(f"Transpiling whole directory to {outdir}:")
 
@@ -389,6 +410,8 @@ def _process_dir(
     print()
     return successful, format_errors, failures
 
+
+# MARK: - Main
 
 def main(args=None, env=os.environ):
     parser = argparse.ArgumentParser()

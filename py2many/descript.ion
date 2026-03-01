@@ -9,7 +9,7 @@ clike.py                  Base transpiler for C-like languages.
 context.py                AST transformers to add context (vars, assignments, etc).
 declaration_extractor.py  Extracts typed member declarations from classes/functions.
 exceptions.py             Custom exception classes for AST and typing errors.
-helpers.py                Miscellaneous AST helpers and annotation stringification.
+helpers.py                Supposedly miscellaneous AST helpers in fact - only annotation stringification.
 inference.py              Type inference and compatibility logic for the AST.
 language.py               Defines LanguageSettings dataclass for targets.
 llm_transpile.py          Transpiling using LLMs (local or remote).

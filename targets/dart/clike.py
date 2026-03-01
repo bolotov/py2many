@@ -78,8 +78,8 @@ dart_keywords = frozenset(
 class CLikeTranspiler(CommonCLikeTranspiler):
     def __init__(self):
         super().__init__()
-        CommonCLikeTranspiler._type_map = dart_type_map
-        CommonCLikeTranspiler._container_type_map = DART_CONTAINER_TYPE_MAP
+        self._type_map = dart_type_map
+        self._container_type_map = DART_CONTAINER_TYPE_MAP
 
     def visit_Name(self, node) -> str:
         if node.id in dart_keywords:

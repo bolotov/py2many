@@ -79,7 +79,7 @@ class RustTranspiler(CLikeTranspiler):
 
     def __init__(self, extension: bool = False, no_prologue: bool = False):
         super().__init__()
-        CLikeTranspiler._default_type = "_"
+        self._default_type = "_"
         self._extension = extension
         self._rust_ignored_module_set = {"argparse_dataclass"}
         self._no_prologue = no_prologue

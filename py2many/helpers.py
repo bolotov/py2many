@@ -3,8 +3,26 @@ import ast
 from .ast_helpers import get_id
 
 
-def get_ann_repr(node, parse_func=None, default=None, sep=None):
-    """ Returns a string representation of the node """
+def get_ann_repr(node, parse_func=None, default=None, sep=None) -> str:
+    """
+    Returns a string representation of the node suitable for type annotations,
+    handling various AST node types such as
+    Name, Call, Attribute, Constant, Subscript, Tuple, and List.
+    If the node cannot be represented, it returns the provided default value.
+
+    :param node: The AST node to represent
+    :param parse_func: An optional function to parse the node's value
+    (e.g., to handle type annotations)
+
+    :param default: The default value to return if the node cannot be
+    represented
+
+    :param sep: An optional tuple of (open, close) separators to use
+    for subscript representations (e.g., for generics)
+
+    :return: A string representation of the node, or the default value
+    if it cannot be represented
+    """
     if sep is None:
         sep = ["[", "]"]
 

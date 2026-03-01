@@ -16,6 +16,7 @@ from py2many.exceptions import AstNotImplementedError
 # can infer the type of the values in the list. This is done by looking at the first assignment
 # to the list and then looking at the type of the value being assigned.
 def _lookup_class_or_module(name, scopes) -> Optional[ast.ClassDef]:
+    """Look up a class or module by name in the given scopes."""
     for scope in scopes:
         if not isinstance(scope.body, Iterable):
             continue

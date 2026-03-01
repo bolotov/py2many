@@ -38,8 +38,8 @@ RUST_KEYWORDS = frozenset(
 class CLikeTranspiler(CommonCLikeTranspiler):
     def __init__(self):
         super().__init__()
-        CommonCLikeTranspiler._type_map = RUST_TYPE_MAP
-        CommonCLikeTranspiler._container_type_map = RUST_CONTAINER_TYPE_MAP
+        self._type_map = RUST_TYPE_MAP
+        self._container_type_map = RUST_CONTAINER_TYPE_MAP
         self._keywords = RUST_KEYWORDS
 
     @classmethod

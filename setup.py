@@ -26,10 +26,8 @@ with open("README.md") as readme_file:
 #     "py2many",
 #     "pycpp",  # this have become .../targets/cpp
 #     "pyd",
-#     "pydart",
 #     "pygo",
 #     "pyjl",
-#     "pykt",
 #     "pymojo",
 #     "pynim",
 #     "pyrs",   # this have become .../targets/rust
@@ -42,6 +40,9 @@ package_dir = {
     "py2many": "py2many",
     "py2many.cpp": "targets/cpp",   # C++ 'backend' is now in 'targets/cpp'
     "py2many.rust": "targets/rust",
+    "py2many.nim": "targets/nim",
+    "py2many.kotlin": "targets/kotlin",
+    "py2many.dart": "targets/dart",
 }
 
 packages = sorted(package_dir.keys())

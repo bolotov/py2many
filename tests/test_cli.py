@@ -235,7 +235,7 @@ class TestCodeGenerator:
             f"--{lang}=1",
             "--comment-unsupported",
             str(case_filename),
-            "--outdir",
+            "--out_dir",
             str(GENERATED_DIR),
         ]
 
@@ -395,7 +395,7 @@ class TestCodeGenerator:
             f"--{lang}=1",
             "--comment-unsupported",
             str(case_filename),
-            "--outdir",
+            "--out_dir",
             str(GENERATED_DIR),
         ]
 
@@ -446,7 +446,7 @@ class TestCodeGenerator:
             "--rust=1",
             "--extension",
             str(case_filename),
-            "--outdir",
+            "--out_dir",
             str(GENERATED_DIR),
         ]
         sys.argv += args
@@ -490,7 +490,7 @@ class TestCodeGenerator:
             f"--{lang}=1",
             str(case_dirname),
             "--project=0",
-            "--outdir",
+            "--out_dir",
             str(output_dir),
         ]
 

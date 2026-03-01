@@ -21,6 +21,7 @@ import pathlib
 import sys
 from typing import Any, Callable, Dict, Mapping, Optional
 
+from py2many.result import Ok, Err
 from py2many.language import LanguageSettings
 from py2many.python_transformer import PythonTranspiler, RestoreMainRewriter
 from py2many.result import Result
@@ -108,27 +109,27 @@ def _discover_targets() -> Result[Dict[str, SettingsFactory], str]:
         try:
             module = importlib.import_module(module_name)
         except Exception as exc:
-            return Result.err(
+            return Err(
                 f"Failed to import backend '{target_path.name}': {exc}"
             )
 
         settings_factory = getattr(module, "settings", None)
 
         if settings_factory is None:
-            return Result.err(
+            return Err(
                 f"Backend '{target_path.name}' missing required "
                 f"'settings(args, env)' factory"
             )
 
         if not callable(settings_factory):
-            return Result.err(
+            return Err(
                 f"'settings' in backend '{target_path.name}' is not callable"
             )
 
         # We trust the type at runtime but cast for static typing.
         discovered[target_path.name] = settings_factory  # type: ignore[assignment]
 
-    return Result.ok(discovered)
+    return Ok(discovered)
 
 
 def _build_all_settings() -> Dict[str, SettingsFactory]:

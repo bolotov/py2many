@@ -1,3 +1,20 @@
+#### Issue with rewriters
+
+Right now many rewriters:
+
+* Mutate node fields
+* Reuse node.value references
+* Sometimes return same node
+* Sometimes return new nodes
+That is dangerous and bad.
+
+Better if Rewriters would:
+* Return original node unchanged
+* Return a NEW node
+* Never mutate siblings
+
+-----
+
 
 - Make a "type/class" 'language' and backend would be requered to
   have itself described using it in code of targets/backends in __init__i
@@ -13,6 +30,17 @@
   that are **reusable**, **composable**, **inheritable**
   ... or a functional way to have type of language to be inherited from 
   a template but defined in a **target** language folder
+
+#### In other words:
+
+- Refactor rewriters to be language-agnostic
+- Move language filtering to registry
+- Turn pipeline into declarative transformation chain
+- Introduce compiler phase separation:
+
+    - AST normalization
+    - semantic lowering
+    - backend lowering
 
 -----
 

@@ -1,52 +1,71 @@
 import ast
+from typing import List, TypeVar
 
-from py2many.clike import CLikeTranspiler
+from py2many.astx import ASTxBlock
+
+
+T = TypeVar("T", bound=ast.AST)
 
 
 class UnpackScopeRewriter(ast.NodeTransformer):
-    """ Rewrites nested blocks (e.g. if, for, with) to a single block, since some
-    languages don't support nested blocks. Only rewrites if there are nested blocks,
-    since otherwise there's nothing to rewrite.
-     Also does not rewrite if the language supports nested blocks, since in those
-     cases it's better to keep the original nested blocks, which are more readable
-     and maintain the original structure of the code.
-     The new block is created by unpacking the body of the nested blocks into
-     a single block, and the original nested blocks are removed.
-     This is done recursively until there are no more nested blocks.
-     A hint is added to the new block to not unpack it again, since it's already
-     been unpacked.
     """
-    def __init__(self, language):
+    Flatten synthetic block containers (ASTxBlock).
+
+    Removes ASTxBlock nodes by inlining their body into
+    the surrounding statement body.
+    """
+
+    def __init__(self, language: object) -> None:
         super().__init__()
         self._language = language
 
-    def _visit_body(self, body):
-        unpacked = []
-        for s in body:
-            do_unpack = getattr(s, "unpack", True)
-            if isinstance(s, ast.If) and CLikeTranspiler.is_block(s) and do_unpack:
-                unpacked.extend(self._visit_body(s.body))
-            else:
-                unpacked.append(s)
-        return unpacked
+    # ------------------------------------------------------------------
+    # Internal utilities
+    # ------------------------------------------------------------------
 
-    def _visit_assign_node_body(self, node):
-        node.body = self._visit_body(node.body)
+    def _flatten_body(self, body: List[ast.stmt]) -> List[ast.stmt]:
+        """
+        Inline ASTxBlock statements into the surrounding body.
+        """
+        flattened: List[ast.stmt] = []
+
+        for stmt in body:
+            if isinstance(stmt, ASTxBlock):
+                flattened.extend(self._flatten_body(stmt.body))
+            else:
+                flattened.append(stmt)
+
+        return flattened
+
+    def _rewrite_compound(self, node: T) -> T:
+        """
+        Rewrite compound statement nodes while preserving type.
+        """
+        self.generic_visit(node)
+
+        if hasattr(node, "body"):
+            node.body = self._flatten_body(node.body)  # type: ignore[attr-defined]
+
+        if hasattr(node, "orelse"):
+            node.orelse = self._flatten_body(node.orelse)  # type: ignore[attr-defined]
+
         return node
 
+    # ------------------------------------------------------------------
+    # Visitors
+    # ------------------------------------------------------------------
+
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
-        return self._visit_assign_node_body(node)
+        return self._rewrite_compound(node)
 
     def visit_For(self, node: ast.For) -> ast.For:
-        return self._visit_assign_node_body(node)
+        return self._rewrite_compound(node)
 
     def visit_If(self, node: ast.If) -> ast.If:
-        return self._visit_assign_node_body(node)
+        return self._rewrite_compound(node)
 
     def visit_With(self, node: ast.With) -> ast.With:
-        return self._visit_assign_node_body(node)
+        return self._rewrite_compound(node)
 
-    def visit_While(self, node: ast.With) -> ast.With:
-        return self._visit_assign_node_body(node)
-
-
+    def visit_While(self, node: ast.While) -> ast.While:
+        return self._rewrite_compound(node)

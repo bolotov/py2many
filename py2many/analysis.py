@@ -2,6 +2,7 @@ import ast
 
 from .ast_helpers import get_id
 
+# FIXME: I believe that whatever following line wants to achieve - it can be achieved better and in more functional way
 get_id  # quiten pyflakes; this should when code is updated to use ast_helpers
 
 IGNORED_MODULE_SET = {
@@ -89,8 +90,10 @@ def is_ellipsis(node) -> bool:
     )
 
 
-class ReturnFinder(ast.NodeVisitor):
-    returns = False
+class ReturnFinder(ast.NodeVisitor): # FIXME: I am not sure wherever I have fixed that or not
+    def __init__(self):
+        self.returns = False
+
 
     def visit_Return(self, node) -> bool:
         """Checks if a return statement has a value"""
@@ -99,7 +102,12 @@ class ReturnFinder(ast.NodeVisitor):
         else:
             self.generic_visit(node)  # continue searching for return statements with values
         return self.returns  # Return True if a return statement with a value is found, otherwise False
-
+#       ^
+#       Do we need this instead (why?):
+#       def visit_Return(self, node):
+#           if node.value is not None:
+#               self.returns = True
+#           self.generic_visit(node)
 
 class FunctionTransformer(ast.NodeTransformer):
     """
@@ -110,11 +118,14 @@ class FunctionTransformer(ast.NodeTransformer):
         """
         Visits a function definition node and adds it to the list of defined functions in the current scope.
 
-        :param node AST node representing a function definition:
-        :return AST node with updated defined functions in scope:
+        Parameters:
+            node AST node representing a function definition
+
+        Returns:
+            AST node with updated defined functions in scope
         """
         node.defined_functions = []
-        node.scopes[-2].defined_functions.append(node)
+        node.scopes[-2].defined_functions.append(node) # WARNING: Unresolved attribute reference 'scopes' for class 'FunctionDef'
         self.generic_visit(node)
         return node
 
@@ -129,25 +140,28 @@ class FunctionTransformer(ast.NodeTransformer):
         self.generic_visit(node)
         return node
 
+    # FIXME: methods below have wird issues that I do not understand, fix and **EXPLAIN**
+
     def visit_Module(self, node):
-        return self._visit_Scoped(node)
+        return self._visit_Scoped(node) # WARNING: Type 'Module' doesn't have expected attribute 'defined_functions'
 
     def visit_ClassDef(self, node):
-        return self._visit_Scoped(node)
+        return self._visit_Scoped(node) # WARNING: Type 'ClassDef' doesn't have expected attribute 'defined_functions'
 
     def visit_For(self, node):
-        return self._visit_Scoped(node)
+        return self._visit_Scoped(node) # WARNING: Type 'For' doesn't have expected attribute 'defined_functions'
 
     def visit_If(self, node):
-        return self._visit_Scoped(node)
+        return self._visit_Scoped(node) # WARNING: Type 'If' doesn't have expected attribute 'defined_functions'
 
     def visit_With(self, node):
-        return self._visit_Scoped(node)
+        return self._visit_Scoped(node) # WARNING: Type 'With' doesn't have expected attribute 'defined_functions'
 
     def visit_ImportFrom(self, node):
         for name in node.names:
             if node.module not in IGNORED_MODULE_SET:
-                node.scopes[-1].defined_functions.append(name)
+                # FIXME: does line below attempts to set unexisting properyt? What should happen instead? any functional ways?
+                node.scopes[-1].defined_functions.append(name) # WARNING: Unresolved attribute reference 'scopes' for class 'ImportFrom'
         return node
 
 
@@ -170,7 +184,7 @@ class CalledWithTransformer(ast.NodeTransformer):
     def visit_Call(self, node):
         for arg in node.args:
             if isinstance(arg, ast.Name):
-                var = node.scopes.find(arg.id)
+                var = node.scopes.find(arg.id) # WARNING: Unresolved attribute reference 'scopes' for class 'Call'
                 var.called_with.append(node)
         self.generic_visit(node)
         return node
@@ -196,7 +210,8 @@ class AttributeCallTransformer(ast.NodeTransformer):
         :return:
         """
         if isinstance(node.func, ast.Attribute):
-            var = node.scopes.find(node.func.value.id)
+            # WARNING (regarding *NEXT* line): Unresolved attribute reference 'id' for class 'expr'
+            var = node.scopes.find(node.func.value.id) # WARNING: Unresolved attribute reference 'scopes' for class 'Call'
             var.calls.append(node)
         return node
 
@@ -216,7 +231,7 @@ class ImportTransformer(ast.NodeTransformer):
         """
         for name in node.names:
             name.imported_from = node
-            scope = name.scopes[-1]
+            scope = name.scopes[-1] # WARNING: Unresolved attribute reference 'scopes' for class 'alias'
             if hasattr(scope, "imports"):
                 scope.imports.append(name)
         return node
@@ -226,8 +241,11 @@ class ImportTransformer(ast.NodeTransformer):
         Initializes the list of imports in the module scope and
         visits the module body.
     
-        :param node AST node representing the module:
-        :return AST node with updated imports in module scope:
+        Parameter:
+            node AST node representing the module
+
+        Returns
+            AST node with updated imports in module scope
         """
         node.imports = []
         self.generic_visit(node)

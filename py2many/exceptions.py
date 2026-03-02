@@ -4,7 +4,12 @@ from .ast_helpers import get_id
 
 
 class _InternalErrorBase(Exception):
-    """Errors occurring when a node with lineno is not available"""
+    """    
+    A base  class for internal errors in the transpiler,
+    such as when a node does not have a line number or column offset.
+    Errors occurring when a node with lineno is not available
+    should not inherit from this class, as they are not internal errors.
+    """
 
 
 class TypeNotSupported(_InternalErrorBase):
@@ -13,7 +18,8 @@ class TypeNotSupported(_InternalErrorBase):
 
 
 class AstErrorBase:
-    """Base class for AST-related errors, capturing line number and column
+    """
+    Base class for AST-related errors, capturing line number and column
     offset from the AST node.
     May be used for more informative error messages that include the
     location of the error in the source code.

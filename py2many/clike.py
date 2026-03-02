@@ -169,6 +169,15 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._throw_on_unimplemented = True
 
     def _reset(self):
+        """Reset the internal state of the transpiler.
+        This is useful when the same transpiler instance is used to transpile
+        multiple files or modules, to ensure that state from one transpilation
+        does not affect another.
+        It clears any accumulated headers, usings, aliases, imported names, features,
+        and resets configuration flags to their default values.
+        This method is called at the beginning of the visit_Module method
+        to ensure a clean state for each new module being transpiled.
+        """
         # Save some settings
         extension = self._extension
         throw_on_unimplemented = self._throw_on_unimplemented
@@ -182,28 +191,40 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._throw_on_unimplemented = throw_on_unimplemented
 
     def headers(self, meta=None) -> str:
+        """Return the necessary headers for the target language as a string."""
         return ""
 
     def usings(self) -> str:
+        """Return the necessary using/import statements for the target language as a string."""
         return ""
 
     def aliases(self) -> str:
+        """Return any type aliases needed for the target language as a string."""
         return ""
 
     def features(self) -> str:
+        """Return any language features needed for the target language as a string."""
         return ""
 
     @property
     def extension(self):
+        """Whether the transpiler is being used in extension mode,
+        where it is expected to produce code snippets
+        to be embedded in handwritten code, rather than a complete program.
+        This can be used to conditionally include or exclude certain code
+        constructs or prologue/epilogue code.
+        """
         return self._extension
 
     def extension_module(self) -> str:
         return ""
 
-    def comment(self, text):
+    def comment(self, text) -> str:
+        """Return a comment string for the target language."""
         return f"/* {text} */"
 
     def _cast(self, name: str, to) -> str:
+        """Return a string representing a cast of name to the type represented by to in the target language."""
         return f"({to}) {name}"
 
     @staticmethod # INFO: this is a Python 3.9 compatibility shim
@@ -244,14 +265,30 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     @classmethod
     def _map_types(cls, typenames: List[str]) -> List[str]:
+        """
+        Map a list of Python type annotations to a list of target language type strings.
+        This is a helper method that applies the _map_type method to each type in the list,
+        allowing for batch processing of type annotations, such as those found in function arguments or return types.
+        """
         return [cls._map_type(e) for e in typenames]
 
     @classmethod
     def _map_container_type(cls, typename) -> str:
+        """
+        Map a Python container type annotation to a target language type string.
+        This method handles special cases for container types, such as lists and dictionaries,
+        which may require different mappings based on their value and index types.
+        """
         return cls._container_type_map.get(typename, cls._default_type)
 
     @classmethod
     def _combine_value_index(cls, value_type, index_type) -> str:
+        """
+        Combine a value type and an index type into a single string representation for container types.
+        For example, if we have a value type of "List" and an index type of "int",
+        this method might return "List<int>" for a language like C++ or "Vec<i32>" for Rust.
+        The exact format of the combined type string can be customized based on the conventions of the target language.
+        """
         return f"{value_type}<{index_type}>"
 
     @classmethod

@@ -96,6 +96,16 @@ if not logger.handlers:
 
 
 def class_for_typename(typename, default_type, locals=None) -> Union[str, object]:
+    """Given a typename as a string, attempt to resolve it to a Python class object.
+        If resolution fails, return the default_type.
+        This is used to map type annotations in the source code to actual Python types,
+        which can then be mapped to target language types.
+        For example, if we have a type annotation of "int", we want to resolve that to the built-in int type,
+        so that we can then map it to "int" in C or "i32" in Rust.
+        The function handles some special cases, such as "super" and "super()",
+        which cannot be resolved at this stage and should not cause an error.
+        It also catches common exceptions that may occur during resolution and logs them for debugging purposes.
+        """
     if typename is None:
         return None
     if isinstance(typename, str) and (
@@ -196,9 +206,13 @@ class CLikeTranspiler(ast.NodeVisitor):
     def _cast(self, name: str, to) -> str:
         return f"({to}) {name}"
 
-    @staticmethod
+    @staticmethod # INFO: this is a Python 3.9 compatibility shim
     def _slice_value(node: ast.Subscript): # FIXME: python shims to be extracted to a separate folder/module
-        # 3.9 compatibility shim
+        """Extract the value of the slice from a Subscript node,
+        handling differences in AST structure between Python versions.
+        In Python 3.8 and earlier, the slice is wrapped in an ast.Index node,
+        while in Python 3.9 and later, the slice is directly accessible.
+        This method abstracts away those differences to provide a consistent way to access the slice value."""
         if sys.version_info < (3, 9, 0):
             if isinstance(node.slice, ast.Index):
                 slice_value = node.slice.value
@@ -212,6 +226,9 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     @classmethod
     def _map_type(cls, typename, lifetime=LifeTime.UNKNOWN) -> str:
+        """
+        Map a Python type annotation to a target language type string.
+        """
         if typename is None:
             return cls._default_type
 

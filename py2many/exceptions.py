@@ -13,6 +13,11 @@ class TypeNotSupported(_InternalErrorBase):
 
 
 class AstErrorBase:
+    """Base class for AST-related errors, capturing line number and column
+    offset from the AST node.
+    May be used for more informative error messages that include the
+    location of the error in the source code.
+    """
     def __init__(self, msg: str, node: ast.AST):
         self.lineno = node.lineno
         self.col_offset = node.col_offset

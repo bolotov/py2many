@@ -144,7 +144,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._aliases: Dict[str, str] = {}
         self._imported_names: Dict[str, Any] = {}
         self._features = set()
-        self._statement_separator = ";"
+        self._statement_separator = ";" # separators **besides** newline
         self._main_signature_arg_names = []
         self._extension = False
         self._ignored_module_set = IGNORED_MODULE_SET.copy()
@@ -171,16 +171,16 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._extension = extension
         self._throw_on_unimplemented = throw_on_unimplemented
 
-    def headers(self, meta=None):
+    def headers(self, meta=None) -> str:
         return ""
 
-    def usings(self):
+    def usings(self) -> str:
         return ""
 
-    def aliases(self):
+    def aliases(self) -> str:
         return ""
 
-    def features(self):
+    def features(self) -> str:
         return ""
 
     @property
@@ -197,7 +197,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         return f"({to}) {name}"
 
     @staticmethod
-    def _slice_value(node: ast.Subscript):
+    def _slice_value(node: ast.Subscript): # FIXME: python shims to be extracted to a separate folder/module
         # 3.9 compatibility shim
         if sys.version_info < (3, 9, 0):
             if isinstance(node.slice, ast.Index):

@@ -11,7 +11,7 @@ import os
 from py2many.language import LanguageSettings
 from .transpiler import DartIntegerDivRewriter, DartTranspiler
 
-# Regarding topy2many/rewriters.py in this language
+# Regarding <py2many root>/py2many/rewriters/.. in this language
 #
 # Following rewriters are likely skipped for dart:
 # - StrStrRewriter

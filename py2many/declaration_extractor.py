@@ -12,8 +12,8 @@ class DeclarationExtractor(ast.NodeVisitor):
     """
     def __init__(self, transpiler):
         self.transpiler = transpiler
-        # maps name -> (type, default_value)
-        self.annotated_members: Dict[str, Tuple[str, Any]] = {}
+        # maps name --> (type, default_value)
+        self.annotated_members = {} #: Dict[str, Tuple[str, Any]] = {}
         self.class_assignments = {}
         self.member_assignments = {}
         self.typed_function_args = {}

@@ -32,16 +32,19 @@ except ModuleNotFoundError:
 
 @dataclass
 class InferMeta:
+    """Metadata resulting from type inference"""
     has_fixed_width_ints: bool
 
 
 def infer_types(node) -> InferMeta:
+    """Infer types for the given AST node and return metadata about the inference process."""
     visitor = InferTypesTransformer()
     visitor.visit(node)
     return InferMeta(visitor.has_fixed_width_ints)
 
 
 def infer_types_typpete(node) -> InferMeta:
+    """Infer types using Typpete and return metadata about the inference process."""
     solver = TypesSolver(node)
     context = Context(node, node.body, solver)
     for stmt in node.body:
@@ -53,6 +56,7 @@ def infer_types_typpete(node) -> InferMeta:
 
 
 def get_inferred_type(node):
+    """Recursively infer the type of an AST node based on annotations and context."""
     if isinstance(node, ast.Name):
         if not hasattr(node, "scopes"):
             return None
@@ -68,6 +72,7 @@ def get_inferred_type(node):
 
 
 def is_reference(arg):
+    """Determine if an argument is a reference type based on its annotation."""
     annotation_has_ref = hasattr(arg, "annotation") and isinstance(
         arg.annotation, ast.Subscript
     )
@@ -81,6 +86,7 @@ def is_reference(arg):
 
 
 def bit_length(val: ast.AST) -> int:
+    """Calculate the bit length of an integer constant AST node."""
     if isinstance(val, ast.Constant) and isinstance(val.value, int):
         return int.bit_length(val.value)
     return 0
@@ -233,6 +239,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         return annotation
 
     def visit_NameConstant(self, node):
+        """Handle None, True, False as constants with types"""
         if node.value is Ellipsis:
             return node
         annotation = self._infer_primitive(node.value)
@@ -245,6 +252,8 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Name(self, node):
+        """Infer type of a variable based on its definition and context."""
+        # self.generic_visit(node)
         annotation = get_inferred_type(node)
         if annotation is not None:
             node.annotation = annotation
@@ -255,11 +264,18 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     @staticmethod
     def _annotate(node, typename: str):
+        """
+        Annotate an AST node with a type annotation based on the provided typename.
+        """
         # ast.parse produces a Module object that needs to be destructured
         type_annotation = cast(ast.Expr, create_ast_node(typename, node)).value
         node.annotation = type_annotation
 
     def visit_List(self, node):
+        """
+        Infer type of list elements and annotate the list with
+        a List[element_type] annotation.
+        """
         self.generic_visit(node)
         if len(node.elts) > 0:
             elements = [self.visit(e) for e in node.elts]
@@ -283,6 +299,10 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Set(self, node):
+        """
+        Infer type of set elements and annotate the set with
+        a Set[element_type] annotation.
+        """
         self.generic_visit(node)
         if len(node.elts) > 0:
             elements = [self.visit(e) for e in node.elts]
@@ -297,6 +317,10 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Dict(self, node):
+        """
+        Infer type of dict keys and values and annotate
+        the dict with a Dict[key_type, value_type] annotation.
+        """
         self.generic_visit(node)
         if len(node.keys) > 0:
 
@@ -334,6 +358,13 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Assign(self, node: ast.Assign) -> ast.AST:
+        """
+        Infer type of an assignment by looking
+        at the value and annotating the target.
+
+        If the target already has a type annotation,
+        check if the inferred type is compatible.
+        """
         self.generic_visit(node)
         self.visit(node.value)
 
@@ -376,6 +407,11 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_AugAssign(self, node: ast.AugAssign) -> ast.AST:
+        """
+        Handle augmented assignment by inferring
+        the type of the target and value,
+        and annotating the target with the resulting type.
+        """
         self.generic_visit(node)
 
         target = node.target
@@ -386,11 +422,22 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Compare(self, node):
+        """
+        Comparisons always return bool,
+        even if we can infer the types of the operands.
+        """
         self.generic_visit(node)
         node.annotation = ast.Name(id="bool")
         return node
 
     def visit_Return(self, node):
+        """
+        Infer return type of a function by looking at the value
+        being returned and annotating the function definition.
+
+        If the function already has a return type annotation,
+        check if the inferred type is compatible.
+        """
         self.generic_visit(node)
         new_type_str = (
             get_id(node.value.annotation) if hasattr(node.value, "annotation") else None
@@ -398,7 +445,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         if new_type_str is None:
             return node
         for scope in node.scopes:
-            type_str = None
+            # type_str = None
             if isinstance(scope, ast.FunctionDef):
                 type_str = get_id(scope.returns)
                 if type_str is not None:
@@ -415,6 +462,12 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_UnaryOp(self, node):
+        """
+        Infer type of a unary operation based
+        on the operand and annotate the node.
+
+        For example, if the operand is an int, then the result is also an int.
+        """
         self.generic_visit(node)
 
         if isinstance(node.operand, ast.Name):
@@ -428,6 +481,10 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def _handle_overflow(self, op, left_id, right_id):
+        """
+        Handle numeric type widening for binary operations,
+        especially for fixed-width integers.
+        """
         widening_op = isinstance(op, ast.Add) or isinstance(op, ast.Mult)
         left_class = class_for_typename(left_id, None)
         right_class = class_for_typename(right_id, None)
@@ -452,6 +509,10 @@ class InferTypesTransformer(ast.NodeTransformer):
         return left_id if left_idx > right_idx else right_id
 
     def visit_BinOp(self, node):
+        """Infer type of a binary operation based on
+        the types of the operands and the operator,
+        and annotate the node with the resulting type.
+        """
         self.generic_visit(node)
 
         if isinstance(node.left, ast.Name):
@@ -547,11 +608,18 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_ClassDef(self, node):
+        """
+        Infer type of a class definition by annotating the class with its name.
+        """
         node.annotation = ast.Name(id=node.name)
         self.generic_visit(node)
         return node
 
     def visit_Attribute(self, node):
+        """
+        Infer type of an attribute access by looking up the base object
+        and annotating with the attribute type if possible.
+        """
         value_id = get_id(node.value)
         if value_id is not None and hasattr(node, "scopes"):
             if is_enum(value_id, node.scopes):
@@ -559,6 +627,10 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Call(self, node):
+        """
+        Infer type of a function call by looking up the function being called
+        and annotating with the return type if possible.
+        """
         fname = get_id(node.func)
         if fname is not None:
             # Handle methods calls by looking up the method name
@@ -588,6 +660,12 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Subscript(self, node):
+        """
+        Infer type of a subscript operation by looking up the base object
+        and annotating with the element type if possible.
+        For example, if we have a variable x annotated as List[int],
+        then x[0] can be annotated as int.
+        """
         definition = node.scopes.find(get_id(node.value))
         if hasattr(definition, "annotation"):
             CLikeTranspiler._typename_from_annotation(definition)
@@ -606,6 +684,12 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_For(self, node):
+        """
+        Infer type of a for loop by looking at the iterable and
+        annotating the target variable.
+        For example, if we have a for loop like `for x in [1, 2, 3]:`,
+        we can infer that x is of type int.
+        """
         self.visit(node.target)
         self.visit(node.iter)
         if hasattr(node.iter, "annotation") and isinstance(
@@ -622,6 +706,11 @@ class InferTypesTransformer(ast.NodeTransformer):
         self.generic_visit(node)
         return node
 
-    def visit_BoolOp(self, node: ast.BoolOp):
+    def visit_BoolOp(self, node: ast.BoolOp) -> ast.AST:
+        """
+        Infer type of a boolean operation as bool,
+        even if we can infer the types of the operands.
+        """
+        #        self.generic_visit(node)
         node.annotation = ast.Name(id="bool")
         return node

@@ -29,7 +29,7 @@ from .rewriters.str_str import StrStrRewriter
 from .rewriters.unpack_scope import UnpackScopeRewriter
 from .rewriters.with_to_block_transformer import WithToBlockTransformer
 from .scope import add_scope_context
-from .toposort_modules import toposort
+from py2many.utilities.toposort_modules import toposort
 from .version import __version__
 
 PY2MANY_DIR = Path(__file__).parent

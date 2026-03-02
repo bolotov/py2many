@@ -31,3 +31,7 @@ class RenameTransformer(ast.NodeTransformer):
             node.func.id = self._new_name
         self.generic_visit(node)
         return node
+
+def rename(scope, old_name, new_name):
+    tx = RenameTransformer(old_name, new_name)
+    tx.visit(scope)

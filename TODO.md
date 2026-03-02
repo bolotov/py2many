@@ -44,6 +44,25 @@ Better if Rewriters would:
 
 -----
 
+#### Design improvements
+
+Ogranise language data for better both way transformation
+
+Creation of 'syntax'
+
+Better **organisation**. Put into sepparate folder/module/package (depending what would bebetter):
+
+- python shims
+- "transformers"
+
+
+
+
+
+---
+
+
+
 - js2py as front (ast producer) for py2many. Problems and solutions:
   - Js2Py wraps everything in a pyjs object to preserve JS behavior
      (like null vs undefined).

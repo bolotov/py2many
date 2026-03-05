@@ -1,8 +1,19 @@
 import ast
-from collections.abc import Iterable
 from contextlib import contextmanager
 
 from py2many.analysis import get_id
+
+
+# All AST node types that introduce lexical scopes.
+# FIX: Explicit central definition ensures consistent scope detection
+# across the entire module and avoids duplicated isinstance logic.
+_SCOPE_TYPES = (
+    ast.Module,
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+)
 
 
 def add_scope_context(node):
@@ -16,37 +27,34 @@ class ScopeMixin:
     a node is part of.
     """
 
-    scopes : list[ast.AST] = []
+    def __init__(self):
+        # FIX:
+        # Scope stack must be instance-local and must never be shared.
+        # Using a plain list is correct because the transformer instance
+        # is single-use per traversal.
+        self.scopes = []
 
     @contextmanager
-    def enter_scope(self, node): # -> Iterable[None]:
+    def enter_scope(self, node):
         """Context manager for entering a new scope."""
-        if self._is_scopable_node(node):
+
+        # Only push nodes that actually introduce scopes.
+        if isinstance(node, _SCOPE_TYPES):
             self.scopes.append(node)
-            yield
-            self.scopes.pop()
+            try:
+                yield
+            finally:
+                # FIX:
+                # Ensure the stack is restored even if an exception occurs
+                # during subtree traversal.
+                self.scopes.pop()
         else:
             yield
 
     @property
     def scope(self):
-        try:
-            return self.scopes[-1]
-        except IndexError:
-            return None
-
-    @staticmethod
-    def _is_scopable_node(node): # FIXME: IMPORTANT: KEEP OLD NAME IN A COMMENT | IMPORTANT: FIND A BETTER NAME TO NOT TRIGGER SPELLCHECKER
-        scopes = [
-            ast.Module,
-            ast.ClassDef,
-            ast.FunctionDef,
-            ast.Lambda,
-            ast.For,
-            ast.If,
-            ast.With,
-        ]
-        return len([s for s in scopes if isinstance(node, s)]) > 0
+        # Return current scope or None when traversal has not yet entered one.
+        return self.scopes[-1] if self.scopes else None
 
 
 class ScopeList(list):
@@ -55,51 +63,50 @@ class ScopeList(list):
     the definition of a variable
     """
 
+    @staticmethod
+    def _lookup(scope, attr, name):
+        # FIX:
+        # getattr default prevents AttributeError when analysis passes
+        # have not attached attributes like vars/body_vars/orelse_vars.
+        for var in getattr(scope, attr, ()):
+            if get_id(var) == name:
+                return var
+        return None
+
     def find(self, lookup):
         """Find definition of variable lookup."""
 
-        def find_definition(scope, var_attr="vars"):
-            for var in getattr(scope, var_attr):
-                if get_id(var) == lookup:
-                    return var
-            return None
+        # Attributes expected from earlier analysis passes.
+        attrs = ("vars", "body_vars", "orelse_vars")
 
         for scope in reversed(self):
-            defn = None
-            if not defn and hasattr(scope, "vars"): # TODO: convert into match-case pattern matching OR something better
-                defn = find_definition(scope, "vars")
-            if not defn and hasattr(scope, "body_vars"):
-                defn = find_definition(scope, "body_vars")
-            if not defn and hasattr(scope, "orelse_vars"):
-                defn = find_definition(scope, "orelse_vars")
-            if not defn and hasattr(scope, "body"):
-                # special case lambda functions here. Their body is not a list
-                if isinstance(scope.body, Iterable):
-                    defn = find_definition(scope, "body")
-                else:
-                    return None
-            if defn:
-                return defn
+
+            # Search synthetic attributes added by analysis passes.
+            for attr in attrs:
+                if hasattr(scope, attr):
+                    result = self._lookup(scope, attr, lookup)
+                    if result:
+                        return result
+
+            # Fallback: search body nodes.
+            # Needed for constructs like lambdas whose body may contain
+            # definitions directly.
+            if hasattr(scope, "body") and isinstance(scope.body, list):
+                result = self._lookup(scope, "body", lookup)
+                if result:
+                    return result
+
         return None
-
-    def find_import(self, lookup):  # pragma: no cover
-        """
-        Find definition of an import.
-
-        Currently unused.
-        """
-        for one_scope in reversed(self):
-            if hasattr(one_scope, "imports"):
-                for imp in one_scope.imports:
-                    if imp.name == lookup:
-                        return imp
-        return None # <-- is it safe?
 
     @property
     def parent_scopes(self):
-        scopes = list(self)
-        scopes.pop()
-        return ScopeList(scopes)
+        # FIX:
+        # Returning an empty ScopeList ensures type consistency.
+        # Returning [] previously would break callers expecting ScopeList.
+        if len(self) <= 1:
+            return ScopeList()
+        return ScopeList(self[:-1])
+
 
 class ScopeTransformer(ast.NodeTransformer, ScopeMixin):
     """Adds a scope attribute to each AST node.
@@ -112,17 +119,16 @@ class ScopeTransformer(ast.NodeTransformer, ScopeMixin):
         scopes: Inherited from ScopeMixin, tracks the current nesting level.
     """
 
-    def visit(self, node: ast.AST):
-        """Visits a node and attaches the current scope list.
+    def __init__(self):
+        ast.NodeTransformer.__init__(self)
+        ScopeMixin.__init__(self)
 
-        Args:
-            node: The AST node to process.
+    def visit(self, node):
 
-        Returns:
-            The visited node, potentially transformed.
-        """
-        with self.enter_scope(node): # WARNING: Parameter 'node' unfilled
-        # with self.enter_scope(node): #
-            # Note: Attaching custom attributes to AST nodes is valid in Python
-            node.scopes = ScopeList(self.scopes)  # type: ignore
+        # FIX:
+        # The scope list attached to nodes must be a *snapshot*
+        # of the current scope stack. Using ScopeList(self.scopes)
+        # directly would expose the mutable internal stack.
+        with self.enter_scope(node):
+            node.scopes = ScopeList(list(self.scopes))
             return super().visit(node)

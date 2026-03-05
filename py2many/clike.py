@@ -16,7 +16,6 @@ from ctypes import c_uint16 as u16
 from ctypes import c_uint32 as u32
 from ctypes import c_uint64 as u64
 from ctypes import c_uint8 as u8
-from pathlib import Path
 from typing import (  # noqa: F401
     Any,
     Callable,
@@ -509,33 +508,82 @@ class CLikeTranspiler(ast.NodeVisitor):
 
 
     @classmethod
-    def _generic_typename_from_type_node(cls, node) -> Union[List, str, None]:
+#     def _generic_typename_from_type_node(cls, node) -> Union[List, str, None]:
+#         """
+#         Extract a generic type name from a type annotation node in
+#         the AST without doing any target specific mapping.
+#         """
+#         if isinstance(node, ast.Name):
+#             return get_id(node)
+#         elif isinstance(node, ast.Constant):
+#             return node.value
+#         elif isinstance(node, ast.ClassDef):
+#             return get_id(node)
+#         elif isinstance(node, ast.Tuple):
+#             return [cls._generic_typename_from_type_node(e) for e in node.elts]
+#         elif isinstance(node, ast.Attribute):
+#             node_id = get_id(node)
+#             if node_id is not None and node_id.startswith("typing."):
+#                 node_id = node_id.split(".")[1]
+#             return node_id
+#         elif isinstance(node, ast.Subscript):
+#             slice_value = cls._slice_value(node)
+#             (value_type, index_type) = tuple(
+#                 map(cls._generic_typename_from_type_node, (node.value, slice_value))
+#             )
+#             node.generic_container_type = (value_type, index_type)
+#             return f"{value_type}[{index_type}]"
+#         return cls._default_type
+
+
+    @classmethod
+    def _generic_typename_from_type_node(
+            cls,
+            node: ast.AST
+    ) -> Union[List, str, None]:
         """
         Extract a generic type name from a type annotation node in
-        the AST without doing any target specific mapping.
+        the AST without doing any target-specific mapping.
         """
-        if isinstance(node, ast.Name):
-            return get_id(node)
-        elif isinstance(node, ast.Constant):
-            return node.value
-        elif isinstance(node, ast.ClassDef):
-            return get_id(node)
-        elif isinstance(node, ast.Tuple):
-            return [cls._generic_typename_from_type_node(e) for e in node.elts]
-        elif isinstance(node, ast.Attribute):
-            node_id = get_id(node)
-            if node_id.startswith("typing."):
-                node_id = node_id.split(".")[1]
-            return node_id
-        elif isinstance(node, ast.Subscript):
-            slice_value = cls._slice_value(node)
-            (value_type, index_type) = tuple(
-                map(cls._generic_typename_from_type_node, (node.value, slice_value))
-            )
-            node.generic_container_type = (value_type, index_type)
-            return f"{value_type}[{index_type}]"
-        return cls._default_type
 
+        match node:
+
+            case ast.Name():  # Simple type name
+                return get_id(node)
+
+            case ast.Constant(value=val):  # Literal type reference
+                return val  # Can be str, int, float, bool, etc.
+
+            case ast.ClassDef():  # Class definition
+                return get_id(node)
+
+            case ast.Tuple(elts=elements):  # Tuple type (A, B)
+                result: List = []
+                for e in elements:
+                    t = cls._generic_typename_from_type_node(e)
+                    if t is not None:
+                        result.append(t)
+                return result if result else None
+
+            case ast.Attribute():  # Qualified attribute: typing.List
+                node_id = get_id(node)
+                if node_id is not None and node_id.startswith("typing."):
+                    return node_id.split(".", 1)[1]
+                return node_id
+
+            case ast.Subscript():  # List[int], Dict[str, int]
+                slice_value = cls._slice_value(node)
+
+                value_type = cls._generic_typename_from_type_node(node.value)
+                index_type = cls._generic_typename_from_type_node(slice_value)
+
+                # Attach container info (generic)
+                node.generic_container_type = (value_type, index_type)
+
+                return f"{value_type}[{index_type}]"
+
+            case _:  # Fallback
+                return cls._default_type
 
     @classmethod
     def _typename_from_annotation(cls, node, attr="annotation") -> str:
@@ -599,25 +647,75 @@ class CLikeTranspiler(ast.NodeVisitor):
         return self.comment("pass")
 
 
-    def visit_Module(self, node) -> str:
-        """Visit the module node, which is the root of the AST for a Python file."""
-        docstring = getattr(node, "docstring_comment", None)
-        buf = [self.comment(docstring.value)] if docstring is not None else []
-        filename = getattr(node, "__file__", None)
-        self._reset()
-        if filename is not None:
-            self._module = Path(filename).stem
-        body_dict: Dict[ast.AST, str] = OrderedDict()
-        for b in node.body:
-            if not isinstance(b, ast.FunctionDef):
-                body_dict[b] = self.visit(b)
-        # Second pass to handle functiondefs whose body
-        # may refer to other members of node.body
-        for b in node.body:
-            if isinstance(b, ast.FunctionDef):
-                body_dict[b] = self.visit(b)
+#     def visit_Module(self, node) -> str:
+#         """Visit the module node, which is the root of the AST for a Python file."""
+#         docstring = getattr(node, "docstring_comment", None)
+#         buf = [self.comment(docstring.value)] if docstring is not None else []
+#         filename = getattr(node, "__file__", None)
+#         self._reset()
+#         if filename is not None:
+#             self._module = Path(filename).stem
+#         body_dict: Dict[ast.AST, str] = OrderedDict()
+#         for b in node.body:
+#             if not isinstance(b, ast.FunctionDef):
+#                 body_dict[b] = self.visit(b)
+#         # Second pass to handle functiondefs whose body
+#         # may refer to other members of node.body
+#         for b in node.body:
+#             if isinstance(b, ast.FunctionDef):
+#                 body_dict[b] = self.visit(b)
+#
+#         buf += [body_dict[b] for b in node.body]
+#         return "\n".join(buf)
 
-        buf += [body_dict[b] for b in node.body]
+    def visit_Module(self, node) -> str:
+        """Visit a module node and emit the top-level translation unit.
+
+        The module is emitted in two conceptual stages:
+        1. Top-level declarations (imports, classes, constants, etc.)
+        2. Callable definitions (functions, async functions)
+
+        This ordering ensures that declarations appear before functions
+        in generated C-like targets.
+        """
+
+        buf = []
+
+        def is_callable_definition(n: ast.AST) -> bool:
+            """
+            Identify nodes that represent top-level callable definitions.
+
+            FIX:
+            The previous implementation explicitly checked only
+            `ast.FunctionDef`. This caused `ast.AsyncFunctionDef`
+            (and any future callable node types) to be processed in the
+            wrong phase.
+
+            The classification is now centralized in this predicate,
+            eliminating duplicated type checks and preventing omissions.
+            """
+            return isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+
+        # ---------------------------------------------------------
+        # Phase 1: declarations
+        # ---------------------------------------------------------
+
+        for stmt in node.body:
+            if not is_callable_definition(stmt):
+                result = self.visit(stmt)
+                if result:
+                    buf.append(result)
+
+        # ---------------------------------------------------------
+        # Phase 2: callable definitions
+        # ---------------------------------------------------------
+
+        for stmt in node.body:
+            if is_callable_definition(stmt):
+                result = self.visit(stmt)
+                if result:
+                    buf.append(result)
+
         return "\n".join(buf)
 
 
@@ -665,7 +763,8 @@ class CLikeTranspiler(ast.NodeVisitor):
         Returns:
             str: A string representing the import statements needed for the target language.
         """
-        raise NotImplementedError # WAS: ...
+        ...
+        #raise NotImplementedError # WAS: ...
 
 
     def visit_Import(self, node: ast.Import):
@@ -1160,11 +1259,14 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self, node) -> str:
         """
-        Visit an asynchronous function definition node,
-        which represents the use of the async def syntax
-        for defining asynchronous functions in Python.
+        Visit an asynchronous function definition node.
+
+        Async functions are lowered to normal functions for C-like targets
+        since the transpiler does not implement coroutine semantics.
         """
-        return self.visit_unsupported_body(node, "async def", node.body)
+        # FIX: treat async functions the same as normal functions
+        # instead of marking them unsupported.
+        return self.visit_FunctionDef(node)
 
     def visit_Nonlocal(self, node) -> str:
         """

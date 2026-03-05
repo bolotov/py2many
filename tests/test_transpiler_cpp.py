@@ -1,7 +1,7 @@
 import textwrap
 
 try:
-    from py2many.pycpp.transpiler import transpile
+    from py2many.cpp.transpiler import transpile
 except ImportError:
     from targets.cpp.transpiler import transpile
 

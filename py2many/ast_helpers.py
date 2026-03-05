@@ -4,106 +4,125 @@ from typing import cast
 from py2many.astx import ASTxIf
 
 
-def get_id(var) -> str | None:
+def get_id(var: ast.AST) -> str | None:
     """
-    Returns the identifier of an AST node, if it has one.
-    Handles various AST node types such as
-    alias, Name, arg, FunctionDef, ClassDef, and Attribute.
+    Return the identifier represented by an AST node, if it has one.
 
-    If the node does not have an identifier, it returns None.
-    
-    Args:
-        var: The AST node to extract the identifier from
+    This function extracts identifier-like names from common declaration
+    and reference nodes. For literal nodes (``ast.Constant``), it returns
+    the string representation of the literal value.
 
-    Returns:
-        The identifier of the node, or None if the node
-        does not have an identifier
+    Supported node kinds:
+        - ast.alias
+        - ast.Name
+        - ast.arg
+        - ast.FunctionDef
+        - ast.ClassDef
+        - ast.Attribute (recursively resolved)
+        - ast.Constant (stringified value)
+
+    Parameters
+    ----------
+    var:
+        The AST node to inspect.
+
+    Returns
+    -------
+    str | None
+        The extracted identifier or literal representation, or None
+        if the node does not represent an identifier-like value.
     """
 
     if isinstance(var, ast.alias):
         return var.name
-    elif isinstance(var, ast.Name):
+
+    if isinstance(var, ast.Name):
         return var.id
-    elif isinstance(var, ast.arg):
+
+    if isinstance(var, ast.arg):
         return var.arg
-    elif isinstance(var, ast.FunctionDef):
+
+    if isinstance(var, ast.FunctionDef):
         return var.name
-    elif isinstance(var, ast.ClassDef):
+
+    if isinstance(var, ast.ClassDef):
         return var.name
-    elif isinstance(var, ast.Attribute):
-        value_id = get_id(var.value)
-        return f"{value_id}.{var.attr}"
-    elif isinstance(var, ast.Constant):
-        return str(var.value)
-    elif isinstance(var, ast.Str):
-        return var.s
-    elif isinstance(var, ast.Num):
-        return str(var.n)
-    elif isinstance(var, ast.Bytes):
-        return var.s.decode('utf-8')
-    else:
-        # print(f"warning: {var}"") # TODO: add logging/reporting
-        return None
 
-#----- This WAS here -------
-#     if isinstance(var, ast.alias):
-#         return var.name
-#     elif isinstance(var, ast.Name):
-#         return var.id
-#     elif isinstance(var, ast.arg):
-#         return var.arg
-#     elif isinstance(var, ast.FunctionDef):
-#         return var.name
-#     elif isinstance(var, ast.ClassDef):
-#         return var.name
-#     elif isinstance(var, ast.Attribute):
-#         value_id = get_id(var.value)
-#         return f"{value_id}.{var.attr}"
-##     elif isinstance(var, ast.Str): # Gone in 3.14 use ast.Constant
-##         return var.s
-##     elif isinstance(var, ast.Num): # Gone in 3.14 use ast.Constant
-##         return str(var.n)
-##     elif isinstance(var, ast.Bytes): # Gone in 3.14 use ast.Constant
-##         return var.s.decode('utf-8')
-#     else:
-#         # print(f"warning: {var}"") # TODO: add logging/reporting
-#         return None
+    if isinstance(var, ast.Attribute):
+        base = get_id(var.value)
+        if base is None:
+            return None
+        return f"{base}.{var.attr}"
+
+    if isinstance(var, ast.Constant):
+        value = var.value
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return str(value)
+
+    return None
 
 
-def create_ast_node(code, at_node=None) -> ast.AST:
+def create_ast_node(code: str, at_node: ast.AST | None = None) -> ast.AST:
     """
-    Returns an AST node created from the provided code string.
-    If at_node is provided, the new node's line number and column offset
-    will be set to match at_node.
-    
-    :param code - The code string to parse into an AST node:
-    :param at_node - An optional AST node to use as a reference for line number and column offset:
-    :return - An AST node representing the provided code string, with line number and column offset set if at_node is provided:
+    Parse a single statement from source code and return its AST node.
+
+    If ``at_node`` is provided, the returned node inherits its
+    ``lineno`` and ``col_offset``. This is useful when synthesizing
+    nodes during transformations while preserving source location.
+
+    Args:
+        code: A string containing a single Python statement.
+        at_node: An optional AST node to copy location information from.
+
+    Returns:
+        The parsed AST node, potentially with updated location metadata.
     """
-    new_node = ast.parse(code).body[0]
-    if at_node:
+    module = ast.parse(code)
+    new_node = module.body[0]
+
+    if at_node is not None:
         new_node.lineno = at_node.lineno
         new_node.col_offset = at_node.col_offset
+
     return new_node
 
 
 def create_ast_block(body, at_node=None) -> ASTxIf:
     """
-    Returns an AST node representing a block of code with the provided body.
-    The block is created as an if statement with a constant true condition,
-    allowing it to be used as a container for the body statements.
-    If at_node is provided, the new block's line number will be set to
-    match at_node.
-    
-    :param body - A list of AST nodes to include in the body of the block:
-    :param at_node: An optional AST node to use as a reference for line number:
-    :return: An AST node representing a block of code with the provided body, with line number set if at_node is provided:
+    Create a synthetic block node containing the provided statements.
+
+    The block is represented as:
+
+        if True:
+            <body>
+
+    This allows grouping statements in contexts where a block node
+    is required syntactically.
+
+    The returned node is marked with ``rewritten = True`` to signal
+    that it was introduced during transformation.
+
+    Args:
+        body: A list of AST nodes to include in the block body.
+        at_node: Optional node whose line number should be copied.
+
+    Returns:
+        An ``ast.If`` node (typed as ``ASTxIf``) containing the body.
     """
     block = cast(
         ASTxIf,
-        ast.If(test=ast.Constant(value=True),body=body, orelse=[])
+        ast.If(
+            test=ast.Constant(
+                value=True
+            ),
+            body=body,
+            orelse=[]
+        )
     )
-    block.rewritten = True  # noqa
+
+    block.rewritten = True  # transformation marker
+
     if at_node:
         block.lineno = at_node.lineno
     ast.fix_missing_locations(block)

@@ -446,28 +446,62 @@ class CppTranspiler(CLikeTranspiler):
 
         return "".join(var_definitions) + super().visit_If(node)
 
-    def visit_UnaryOp(self, node) -> str:
-        if isinstance(node.op, ast.USub):
-            if isinstance(node.operand, (ast.Call, ast.Num)):
-                # Shortcut if parenthesis are not needed
-                return f"-{self.visit(node.operand)}"
-            else:
-                return f"-({self.visit(node.operand)})"
-        else:
-            return super().visit_UnaryOp(node)
 
-    def visit_BinOp(self, node) -> str:
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> str:
+        """
+        Visit a unary operation node (e.g., -x).
+
+        In Python 3.14, numeric literals are represented as ast.Constant.
+
+        Args:
+            node (ast.UnaryOp): The unary operation AST node.
+
+        Returns:
+            str: The unary expression rendered in the target language.
+        """
+        if isinstance(node.op, ast.USub):
+            operand = node.operand
+
+            # Avoid unnecessary parentheses for calls or numeric constants
+            if isinstance(operand, ast.Call):
+                return f"-{self.visit(operand)}"
+
+            if isinstance(operand, ast.Constant) and isinstance(
+                    operand.value, (int, float, complex)
+            ):
+                return f"-{self.visit(operand)}"
+
+            return f"-({self.visit(operand)})"
+
+        return super().visit_UnaryOp(node)
+
+
+    def visit_BinOp(self, node: ast.BinOp) -> str:
+        """
+        Visit a binary operation node.
+
+        Special-case list repetition (e.g., [x] * n) to generate
+        a C++ std::vector equivalent.
+
+        Args:
+            node (ast.BinOp): The binary operation AST node.
+
+        Returns:
+            str: The rendered binary operation.
+        """
         if (
-            isinstance(node.left, ast.List)
-            and isinstance(node.op, ast.Mult)
-            and isinstance(node.right, ast.Num)
+                isinstance(node.left, ast.List)
+                and isinstance(node.op, ast.Mult)
+                and isinstance(node.right, ast.Constant)
+                and isinstance(node.right.value, int)
         ):
             self._usings.add("<vector>")
             return "std::vector ({},{})".format(
-                self.visit(node.right), self.visit(node.left.elts[0])
+                self.visit(node.right),
+                self.visit(node.left.elts[0]),
             )
-        else:
-            return super().visit_BinOp(node)
+
+        return super().visit_BinOp(node)
 
     def _import(self, name: str) -> str:
         name = MODULE_DISPATCH_TABLE[name] if name in MODULE_DISPATCH_TABLE else name
@@ -534,17 +568,20 @@ class CppTranspiler(CLikeTranspiler):
             return f"{typename}{{{kv_pairs}}}"
         return f"std::map<{key_typename}, {value_typename}>{{{kv_pairs}}}"
 
-    def visit_Subscript(self, node) -> str:
-        value = self.visit(node.value)
-        if isinstance(node.slice, ast.Ellipsis):
+    def visit_Subscript(self, node: ast.Subscript) -> str:
+        value = self.visit(node.value) or "<unknown>"
+
+        slice_node = node.slice
+        if isinstance(slice_node, ast.Constant) and slice_node.value is Ellipsis:
             raise AstNotImplementedError("Ellipsis not supported", node)
 
         slice_value = self._slice_value(node)
-        index = self.visit(slice_value)
-        if hasattr(node, "is_annotation"):
-            if value in self.CONTAINER_TYPES:
-                value = self.CONTAINER_TYPES[value]
+        index = self.visit(slice_value) or "<unknown>"
+
+        if hasattr(node, "is_annotation") and value in self.CONTAINER_TYPES:
+            value = self.CONTAINER_TYPES[value]
             return f"{value}<{index}>"
+
         return f"{value}[{index}]"
 
     def visit_Tuple(self, node) -> str:

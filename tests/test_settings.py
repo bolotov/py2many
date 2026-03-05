@@ -2,10 +2,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from py2many.cli import _get_all_settings
+from py2many.pipeline import get_all_settings
 
 try:
-    from py2many.pycpp import (
+    from targets.cpp import (
         REQUIRED_INCLUDE_FILES,
         _conan_include_args,
         _conan_include_dirs,
@@ -32,10 +32,10 @@ class TestSettings(unittest.TestCase):
     def test_env_clang_format_style(self):
         lang = "cpp"
         env = {"CLANG_FORMAT_STYLE": "Google"}
-        settings = _get_all_settings(Mock(indent=4), env=env)[lang]
+        settings = get_all_settings(Mock(indent=4), env=env)[lang]
         self.assertIn("-style=Google", settings.formatter)
 
     def test_arg_nim_indent(self):
         lang = "nim"
-        settings = _get_all_settings(Mock(indent=2))[lang]
+        settings = get_all_settings(Mock(indent=2))[lang]
         self.assertIn("--indent:2", settings.formatter)

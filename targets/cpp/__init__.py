@@ -36,7 +36,12 @@ def _conan_include_dirs() -> List[str]:
 
 def _conan_include_args() -> List[str]:
     """Convert Conan include dirs into -I flags for compiler."""
-    return list(chain(*[["-I", dir] for dir in _conan_include_dirs()]))
+    return [
+        arg
+        for directory in _conan_include_dirs()
+        for arg in ("-I", directory)
+    ]
+
 
 
 def settings(args, env=os.environ) -> LanguageSettings:

@@ -17,11 +17,22 @@ class Transformer(Protocol):
 @dataclass
 class LanguageSettings:
     """
-    Represents a fully configured target language backend.
+    Fully configured target language backend.
 
-    This class defines the interface between py2many core
-    and each individual transpilation backend (Rust, Go, etc.).
+    Interfaces transpilation core with transpilation backends,
+    managing code emission, AST transformations, formatting,
+    linting, and `project` initialization.
+
+    Example:
+        settings = LanguageSettings(
+            transpiler=RustTranspiler(),
+            ext=".rs",
+            display_name="Rust",
+            formatter=["rustfmt"],
+            create_project=["cargo", "new", "."]
+        )
     """
+
 
     transpiler: CLikeTranspiler
     """The core object responsible for emitting code in the target language."""

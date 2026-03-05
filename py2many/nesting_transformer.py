@@ -15,28 +15,40 @@ class NestingTransformer(ast.NodeTransformer):
         self.level = 0
 
     def _visit_level(self, node) -> ast.AST:
+        """Annotate node with nesting level and visit children"""
         node.level = self.level
         self.level += 1
         self.generic_visit(node)
         self.level -= 1
         return node
 
-    def visit_FunctionDef(self, node):
+    def visit_FunctionDef(self, node) -> ast.AST:
+        """Annotate function definitions with nesting level"""
         return self._visit_level(node)
 
-    def visit_ClassDef(self, node):
+    def visit_ClassDef(self, node) -> ast.AST:
+        """
+        Annotate class definitions with nesting level.
+        This is relevant for languages like Java
+        where nested classes are a thing,
+        but not for Python where nested classes are not a thing.
+        """
         return self._visit_level(node)
 
     def visit_If(self, node):
+        """Annotate if statements with nesting level"""
         return self._visit_level(node)
 
     def visit_While(self, node):
+        """Annotate while statements with nesting level"""
         return self._visit_level(node)
 
     def visit_For(self, node):
+        """Annotate for statements with nesting level"""
         return self._visit_level(node)
 
     def visit_Assign(self, node):
+        """Annotate assignment statements with nesting level"""
         node.level = self.level
         self.generic_visit(node)
         return node

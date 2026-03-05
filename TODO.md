@@ -13,6 +13,37 @@ Better if Rewriters would:
 * Return a NEW node
 * Never mutate siblings
 
+----
+
+Now program reads **ALL** backends no matter which language you use.
+
+How I want must be **INSTEAD** is thaat py2many may be started to:
+
+-  transpile to ALL languages (for testing or troublesootiing and development purposes) - that **must in future fixed version** produce...
+   ... an immutble list of config elements with **all** configurations for  **all**  target languages
+
+-  transpile to **n** target languages - that **in fixed version must** produce ...
+   ... an immutble list of config elements with **n** configurations for all **that specific** target languages without touching what was not asked for.
+
+-  **The same way** transpilig to **1** specific language mustproduce...
+   ... an immutble list of config elements with **1** configuration for all **that specific** target language
+
+Empty configuration list must cause some debug/info regarding that and program help to be printed.
+
+
+
+Problem is that **described above** is probably a **contradiction** with the way how list of target languages is being built - it must be built using less introspection of target languages I guess so bad or not updated language would not break all the program
+
+----
+
+deprecated nodes were removed in Python 3.14:
+
+- `ast.Num`
+- `ast.Str`
+- `ast.Bytes`
+- `ast.NameConstant`
+- `ast.Ellipsis`
+
 -----
 
 

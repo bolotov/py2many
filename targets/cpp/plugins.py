@@ -7,11 +7,14 @@ import random
 import sys
 from typing import Callable, Dict, List, Tuple, Union
 
-from py2many.analysis import get_id
 
+class CppTranspilerPlugins(ast.NodeVisitor):
+    _usings: set[str]
+    _headers: set[str]
+    _aliases: Dict[str, str]
 
-class CppTranspilerPlugins:
-    def _translate_file(file: str) -> str:
+    @staticmethod
+    def _translate_file(file: str):
         FILE_MAP: Dict[object, str] = {
             "sys.stdout": "std::cout",
             "sys.stdin": "std::cin",
@@ -19,18 +22,22 @@ class CppTranspilerPlugins:
         }
         return FILE_MAP.get(file, file)
 
-    def visit_textio_read(self, node, vargs):
-        # TODO
+    @staticmethod
+    def visit_textio_read(node, vargs):
+        # TODO: complete implementation would need to handle misc. cases,
+        #  and would likely need to use a different approach
+        #  (e.g. using std::getline for reading into a string,
+        #  and using std::istream::read for reading into a buffer with a specified size).
         return None
 
     def visit_textio_write(self, node, vargs):
         self._usings.add("<iostream>")
-        return f"{CppTranspilerPlugins._translate_file(get_id(node.func.value))} << {vargs[0]}"
+        return f"{CppTranspilerPlugins._translate_file()} << {vargs[0]}"
 
     def visit_textio_flush(self, node, vargs):
         self._usings.add("<iostream>")
         return (
-            f"{CppTranspilerPlugins._translate_file(get_id(node.func.value))}.flush()"
+            f"{CppTranspilerPlugins._translate_file()}.flush()"
         )
 
     def visit_range(self, node, vargs: List[str]) -> str:
@@ -79,7 +86,9 @@ class CppTranspilerPlugins:
         return f"static_cast<int>(floor({vargs[0]}))"
 
 
-# small one liners are inlined here as lambdas
+# FIXME: All that STUFF BELOW looks TOTALLY UNUSED
+
+# small one-liners are inlined here as lambdas
 SMALL_DISPATCH_MAP = {
     "int": functools.partial(CppTranspilerPlugins.visit_cast, cast_to="int"),
     "chr": functools.partial(CppTranspilerPlugins.visit_cast, cast_to="char"),

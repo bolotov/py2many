@@ -15,24 +15,30 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "pytest",
     "argparse_dataclass",
-    "typpete @ git+https://github.com/adsharma/Typpete/",
     "algebraic-data-types @ git+https://github.com/adsharma/adt/",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
+lint = [
+    "black"
+]
+inference = [
+    "typpete @ git+https://github.com/adsharma/Typpete/",
+]
 test = [
     "importlib-resources; python_version < '3.9'",
+    "pytest",
     "pytest-cov",
-    "black",
     "astpretty",
     "jgo",
 ]
+#for optional non-test stuff
 
 [project.scripts]
-py2many = "py2many.cli:main"
+py2many = "py2many.__main__:main"
+
 
 [project.urls]
 Homepage = "https://github.com/adsharma/py2many"
@@ -45,12 +51,10 @@ packages = [
     "py2many.nim",
     "py2many.dart",
     "py2many.kotlin",
-#     "py2many.pycpp",   # this was renamed to simply 'cpp'
+    "py2many.go",
 #     "py2many.pyd",
-#     "py2many.pygo",
 #     "py2many.pyjl",
 #     "py2many.pymojo",
-#     "py2many.pyrs",    # this was renamed to simply 'rust'
 #     "py2many.pysmt",
 #     "py2many.pyv",
 #     "py2many.pyzig",
@@ -59,18 +63,15 @@ packages = [
 [tool.setuptools.package-dir]
 "py2many" = "py2many"
 "py2many.cpp" = "targets/cpp"
-"py2many.rs" = "targets/rust"
+"py2many.rust" = "targets/rust"
 "py2many.nim" = "targets/nim"
 "py2many.dart" = "targets/dart"
 "py2many.kotlin" = "targets/kotlin"
+"py2many.go" = "targets/go"
 
-# "py2many.cpp" = "pycpp"
 # "py2many.pyd" = "pyd"
-# "py2many.pygo" = "pygo"
 # "py2many.pyjl" = "pyjl"
-# "py2many.pykt" = "pykt"
 # "py2many.pymojo" = "pymojo"
-# "py2many.pyrs" = "pyrs"
 # "py2many.pysmt" = "pysmt"
 # "py2many.pyv" = "pyv"
 # "py2many.pyzig" = "pyzig"

@@ -69,5 +69,6 @@ class AstIncompatibleAssign(AstErrorBase, TypeError):
 
 
 class AstEmptyNodeFound(TypeError):
+    """A node that is expected to be non-empty is empty"""
     def __init__(self):
         super().__init__("node can not be None")

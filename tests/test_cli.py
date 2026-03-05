@@ -11,21 +11,22 @@ from unittest.mock import Mock
 
 import pytest
 
-from py2many.cli import (
+from py2many.pipeline import (
     _create_cmd,
-    _get_all_settings,
+    get_all_settings,
     _get_output_path,
     _relative_to_cwd,
-    main,
 )
+from py2many.cli import main
+
 from py2many.process_helpers import find_executable
 
 try:
-    from py2many.pycpp import _conan_include_args
+    from targets.cpp import _conan_include_args
 except ImportError:
     from targets.cpp import _conan_include_args
 
-import py2many.cli
+import py2many.pipeline
 
 TESTS_DIR = Path(__file__).parent.absolute()
 ROOT_DIR = TESTS_DIR.parent
@@ -37,7 +38,7 @@ SHOW_ERRORS = os.environ.get("SHOW_ERRORS", False)
 UPDATE_EXPECTED = os.environ.get("UPDATE_EXPECTED", False)
 
 CXX = os.environ.get("CXX", "clang++")
-LANGS = list(_get_all_settings(Mock(indent=4)).keys())
+LANGS = list(get_all_settings(Mock(indent=4)).keys())
 ENV = {
     "cpp": {"CLANG_FORMAT_STYLE": "Google"},
     "rust": {"RUSTFLAGS": "--deny warnings"},
@@ -197,7 +198,7 @@ class TestCodeGenerator:
         if ENV.get(lang):
             env.update(ENV.get(lang))
 
-        settings = _get_all_settings(Mock(indent=4), env=env)[lang]
+        settings = get_all_settings(Mock(indent=4), env=env)[lang]
         ext = settings.ext
         expected_filename = TESTS_DIR / "expected" / f"{case}{ext}"
 
@@ -377,7 +378,7 @@ class TestCodeGenerator:
         if not find_executable(env["CXX"]):
             raise pytest.skip(f"{env['CXX']} not available")
 
-        settings = _get_all_settings(Mock(indent=4), env=env)[lang]
+        settings = get_all_settings(Mock(indent=4), env=env)[lang]
         assert settings.linter[0].startswith("g++")
 
         if not find_executable("astyle"):
@@ -436,7 +437,7 @@ class TestCodeGenerator:
         if ENV.get(lang):
             env.update(ENV.get(lang))
 
-        settings = _get_all_settings(Mock(indent=2))[lang]
+        settings = get_all_settings(Mock(indent=2))[lang]
         ext = settings.ext
         expected_filename = TESTS_DIR / "ext_expected" / f"{case}{ext}"
         case_filename = TESTS_DIR / "ext_cases" / f"{case}.py"
@@ -474,7 +475,7 @@ class TestCodeGenerator:
         if ENV.get(lang):
             env.update(ENV.get(lang))
 
-        settings = _get_all_settings(Mock(indent=4), env=env)[lang]
+        settings = get_all_settings(Mock(indent=4), env=env)[lang]
         if settings.formatter:
             if not find_executable(settings.formatter[0]):
                 raise pytest.skip(f"{settings.formatter[0]} not available")

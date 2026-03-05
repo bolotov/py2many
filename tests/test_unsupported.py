@@ -27,8 +27,8 @@ from test_cli import BUILD_DIR, COMPILERS, ENV, GENERATED_DIR, INVOKER, KEEP_GEN
 from test_cli import LANGS as _LANGS
 from test_cli import SHOW_ERRORS, TESTS_DIR, get_exe_filename, has_main_lines
 
-import py2many.cli
-from py2many.cli import (
+import py2many.pipeline
+from py2many.pipeline import (
     _create_cmd,
     _get_all_settings,
     _relative_to_cwd,

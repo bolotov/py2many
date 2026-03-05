@@ -9,12 +9,14 @@ class RestoreMainRewriter(ast.NodeTransformer):
         is_python_main = getattr(node, "python_main", False)
 
         if is_python_main:
-            if_block = create_ast_node("if __name__ == '__main__': True", node)
+            if_block = create_ast_node(
+                code="if __name__ == '__main__': True",
+                at_node=node
+            )
             if_block.body = node.body
             ast.fix_missing_locations(if_block)
             return if_block
         return node
-
 
 class PythonTranspiler(CLikeTranspiler):
     NAME = "python"

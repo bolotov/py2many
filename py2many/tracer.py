@@ -12,8 +12,9 @@ from py2many.exceptions import AstNotImplementedError
 
 # TODO: is it slow? is it correct? 
 # A SLOW and hacky way to get the type of values in lists.
-# We want to be able to generate C++ code like std::vector<int> instead of std::vector<auto> when we
-# can infer the type of the values in the list. This is done by looking at the first assignment
+# to generate C++ code like std::vector<int> instead of std::vector<auto>
+# when we can infer the type of the values in the list.
+# This is done by looking at the first assignment
 # to the list and then looking at the type of the value being assigned.
 def _lookup_class_or_module(name, scopes) -> Optional[ast.ClassDef]:
     """Look up a class or module by name in the given scopes."""
@@ -135,10 +136,12 @@ class ValueExpressionVisitor(ast.NodeVisitor):
         self._stack = []
 
     def visit_Constant(self, node):
-        return str(node.n)
+        # return str(node.n)
+        return str(node.value)
 
     def visit_Str(self, node):
-        return node.s
+        # return node.s
+        return node.value
 
     def visit_Name(self, node):
         name = get_id(node)
@@ -242,12 +245,12 @@ class ValueTypeVisitor(ast.NodeVisitor):
             return self.visit(node.value)
 
 
-def defined_before(node1, node2):
-    """Check if node a has been defined before an other node b"""
-    return node1.lineno < node2.lineno
+def defined_before(one_node, another_node) -> bool:
+    """Check if one_node a has been defined before another_node"""
+    return one_node.lineno < another_node.lineno
 
 
-def is_list_assignment(node):
+def is_list_assignment(node) -> bool:
     return isinstance(node.value, ast.List) and isinstance(
         node.targets[0].ctx, ast.Store
     )

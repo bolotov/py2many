@@ -2,7 +2,7 @@
 # Languages are expected to implement too specific to them 
 # rewriters in their own folder
 #
-# rewriters are used in cli.py (that need to be extracted)
+# rewriters are used in pipeline.py (that need to be extracted)
 # ...and in registry.py
 
 from .complex_destructuring import ComplexDestructuringRewriter

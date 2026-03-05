@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable, Generator, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Generic, ParamSpec, TypeGuard, TypeVar, final
 

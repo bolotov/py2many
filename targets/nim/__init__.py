@@ -7,8 +7,6 @@ object used for transpiling Python code to Nim.
 
 import os
 
-from sympy.integrals.manualintegrate import rewriter
-
 from py2many.language import LanguageSettings
 
 from .inference import infer_nim_types

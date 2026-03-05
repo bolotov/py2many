@@ -33,7 +33,8 @@ class ListCallTransformer(ast.NodeTransformer):
                 var.calls.append(node)
         return node
 
-    def is_list_assignment(self, node):
+    @staticmethod
+    def is_list_assignment(node):
         return (
             hasattr(node, "value")
             and isinstance(node.value, ast.List)
@@ -41,7 +42,8 @@ class ListCallTransformer(ast.NodeTransformer):
             and isinstance(node.targets[0].ctx, ast.Store)
         )
 
-    def is_list_addition(self, node):
+    @staticmethod
+    def is_list_addition(node):
         """Check if operation is adding something to a list"""
         list_operations = ["append", "extend", "insert"]
         return (

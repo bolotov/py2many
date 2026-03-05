@@ -4,7 +4,7 @@ from pathlib import Path
 from shutil import rmtree
 from unittest.mock import Mock
 
-from py2many.cli import _get_all_settings, _process_dir
+from py2many.pipeline import _get_all_settings, _process_dir
 from py2many.exceptions import (
     AstNotImplementedError,
     AstTypeNotSupported,
@@ -168,7 +168,7 @@ class SelfTranspileTests(unittest.TestCase):
                 False,
                 _suppress_exceptions=suppress_exceptions,
             ),
-            expected_success=set(["transpiler.py"]),
+            expected_success={"transpiler.py"},
         )
 
         assert_some_failures(
@@ -185,7 +185,7 @@ class SelfTranspileTests(unittest.TestCase):
                 "annotation_transformer.py",
                 "ast_helpers.py",
                 "astx.py",
-                "cli.py",
+                "pipeline.py",
                 "context.py",
                 "declaration_extractor.py",
                 "exceptions.py",

@@ -16,10 +16,10 @@ class ScopeMixin:
     a node is part of.
     """
 
-    scopes = []
+    scopes : list[ast.AST] = []
 
     @contextmanager
-    def enter_scope(self, node) -> Iterable[None]:
+    def enter_scope(self, node): # -> Iterable[None]:
         """Context manager for entering a new scope."""
         if self._is_scopable_node(node):
             self.scopes.append(node)
@@ -35,7 +35,8 @@ class ScopeMixin:
         except IndexError:
             return None
 
-    def _is_scopable_node(self, node):
+    @staticmethod
+    def _is_scopable_node(node): # FIXME: IMPORTANT: KEEP OLD NAME IN A COMMENT | IMPORTANT: FIND A BETTER NAME TO NOT TRIGGER SPELLCHECKER
         scopes = [
             ast.Module,
             ast.ClassDef,
@@ -65,7 +66,7 @@ class ScopeList(list):
 
         for scope in reversed(self):
             defn = None
-            if not defn and hasattr(scope, "vars"):
+            if not defn and hasattr(scope, "vars"): # TODO: convert into match-case pattern matching OR something better
                 defn = find_definition(scope, "vars")
             if not defn and hasattr(scope, "body_vars"):
                 defn = find_definition(scope, "body_vars")
@@ -87,11 +88,12 @@ class ScopeList(list):
 
         Currently unused.
         """
-        for scope in reversed(self):
-            if hasattr(scope, "imports"):
-                for imp in scope.imports:
+        for one_scope in reversed(self):
+            if hasattr(one_scope, "imports"):
+                for imp in one_scope.imports:
                     if imp.name == lookup:
                         return imp
+        return None # <-- is it safe?
 
     @property
     def parent_scopes(self):
@@ -99,15 +101,28 @@ class ScopeList(list):
         scopes.pop()
         return ScopeList(scopes)
 
-
 class ScopeTransformer(ast.NodeTransformer, ScopeMixin):
-    """
-    Adds a scope attribute to each node.
-    The scope contains the current scope (function, module, for loop)
-    a node is part of.
+    """Adds a scope attribute to each AST node.
+
+    This transformer traverses the AST and attaches a `ScopeList` to each node,
+    representing the lexical scope (e.g., Module, Function, For loop) the
+    node belongs to.
+
+    Attributes:
+        scopes: Inherited from ScopeMixin, tracks the current nesting level.
     """
 
-    def visit(self, node):
-        with self.enter_scope(node):
-            node.scopes = ScopeList(self.scopes)
+    def visit(self, node: ast.AST):
+        """Visits a node and attaches the current scope list.
+
+        Args:
+            node: The AST node to process.
+
+        Returns:
+            The visited node, potentially transformed.
+        """
+        with self.enter_scope(node): # WARNING: Parameter 'node' unfilled
+        # with self.enter_scope(node): #
+            # Note: Attaching custom attributes to AST nodes is valid in Python
+            node.scopes = ScopeList(self.scopes)  # type: ignore
             return super().visit(node)

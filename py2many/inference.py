@@ -56,7 +56,7 @@ def infer_types_typpete(node) -> InferMeta:
 
 
 def get_inferred_type(node):
-    """Recursively infer the type of an AST node based on annotations and context."""
+    """Recursively infer the type of AST node based on annotations and context."""
     if isinstance(node, ast.Name):
         if not hasattr(node, "scopes"):
             return None
@@ -252,7 +252,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         return node
 
     def visit_Name(self, node):
-        """Infer type of a variable based on its definition and context."""
+        """Infer type of variable based on its definition and context."""
         # self.generic_visit(node)
         annotation = get_inferred_type(node)
         if annotation is not None:
@@ -347,7 +347,7 @@ class InferTypesTransformer(ast.NodeTransformer):
                 if hasattr(e, "annotation")
             }
             only_lifetime = next(iter(lifetimes)) if len(lifetimes) == 1 else None
-            if len(lifetimes) == 1 and only_lifetime != None:
+            if len(lifetimes) == 1 and only_lifetime is not None:
                 lifetime = only_lifetime
             else:
                 lifetime = LifeTime.UNKNOWN
@@ -359,7 +359,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_Assign(self, node: ast.Assign) -> ast.AST:
         """
-        Infer type of an assignment by looking
+        Infer type of assignment by looking
         at the value and annotating the target.
 
         If the target already has a type annotation,
@@ -399,7 +399,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         value_class = class_for_typename(value_typename, None)
         if (
             not is_compatible(target_class, value_class, target, node.value)
-            and target_class != None
+            and target_class is not None
         ):
             raise AstIncompatibleAssign(
                 f"{target_class} incompatible with {value_class}", node
@@ -432,7 +432,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_Return(self, node):
         """
-        Infer return type of a function by looking at the value
+        Infer return type of function by looking at the value
         being returned and annotating the function definition.
 
         If the function already has a return type annotation,
@@ -463,7 +463,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_UnaryOp(self, node):
         """
-        Infer type of a unary operation based
+        Infer type of unary operation based
         on the operand and annotate the node.
 
         For example, if the operand is an int, then the result is also an int.
@@ -509,7 +509,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         return left_id if left_idx > right_idx else right_id
 
     def visit_BinOp(self, node):
-        """Infer type of a binary operation based on
+        """Infer type of binary operation based on
         the types of the operands and the operator,
         and annotate the node with the resulting type.
         """
@@ -609,7 +609,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_ClassDef(self, node):
         """
-        Infer type of a class definition by annotating the class with its name.
+        Infer type of class definition by annotating the class with its name.
         """
         node.annotation = ast.Name(id=node.name)
         self.generic_visit(node)
@@ -617,7 +617,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_Attribute(self, node):
         """
-        Infer type of an attribute access by looking up the base object
+        Infer type of attribute access by looking up the base object
         and annotating with the attribute type if possible.
         """
         value_id = get_id(node.value)
@@ -628,7 +628,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_Call(self, node):
         """
-        Infer type of a function call by looking up the function being called
+        Infer type of function call by looking up the function being called
         and annotating with the return type if possible.
         """
         fname = get_id(node.func)
@@ -661,7 +661,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_Subscript(self, node):
         """
-        Infer type of a subscript operation by looking up the base object
+        Infer type of subscript operation by looking up the base object
         and annotating with the element type if possible.
         For example, if we have a variable x annotated as List[int],
         then x[0] can be annotated as int.
@@ -685,7 +685,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_For(self, node):
         """
-        Infer type of a for loop by looking at the iterable and
+        Infer type of for loop by looking at the iterable and
         annotating the target variable.
         For example, if we have a for loop like `for x in [1, 2, 3]:`,
         we can infer that x is of type int.
@@ -708,7 +708,7 @@ class InferTypesTransformer(ast.NodeTransformer):
 
     def visit_BoolOp(self, node: ast.BoolOp) -> ast.AST:
         """
-        Infer type of a boolean operation as bool,
+        Infer type of boolean operation as bool,
         even if we can infer the types of the operands.
         """
         #        self.generic_visit(node)

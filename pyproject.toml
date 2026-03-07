@@ -3,10 +3,9 @@ name = "py2many"
 description = "Python to CLike language transpiler."
 readme = "README.md"
 license = {text = "MIT"}
-authors = [
-    {name = "Arun Sharma"}
-]
+authors = [{name = "Arun Sharma"}]
 requires-python = ">=3.10"
+
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -14,19 +13,15 @@ classifiers = [
     "Topic :: Software Development",
     "Topic :: Utilities",
 ]
+
 dependencies = [
     "argparse_dataclass",
-    "algebraic-data-types @ git+https://github.com/adsharma/adt/",
 ]
+
 dynamic = ["version"]
 
 [project.optional-dependencies]
-lint = [
-    "black"
-]
-inference = [
-    "typpete @ git+https://github.com/adsharma/Typpete/",
-]
+lint = ["black"]
 test = [
     "importlib-resources; python_version < '3.9'",
     "pytest",
@@ -34,47 +29,16 @@ test = [
     "astpretty",
     "jgo",
 ]
-#for optional non-test stuff
 
 [project.scripts]
 py2many = "py2many.__main__:main"
 
-
 [project.urls]
 Homepage = "https://github.com/adsharma/py2many"
 
-[tool.setuptools]
-packages = [
-    "py2many",
-    "py2many.cpp",
-    "py2many.rust",
-    "py2many.nim",
-    "py2many.dart",
-    "py2many.kotlin",
-    "py2many.go",
-#     "py2many.pyd",
-#     "py2many.pyjl",
-#     "py2many.pymojo",
-#     "py2many.pysmt",
-#     "py2many.pyv",
-#     "py2many.pyzig",
-]
-
-[tool.setuptools.package-dir]
-"py2many" = "py2many"
-"py2many.cpp" = "targets/cpp"
-"py2many.rust" = "targets/rust"
-"py2many.nim" = "targets/nim"
-"py2many.dart" = "targets/dart"
-"py2many.kotlin" = "targets/kotlin"
-"py2many.go" = "targets/go"
-
-# "py2many.pyd" = "pyd"
-# "py2many.pyjl" = "pyjl"
-# "py2many.pymojo" = "pymojo"
-# "py2many.pysmt" = "pysmt"
-# "py2many.pyv" = "pyv"
-# "py2many.pyzig" = "pyzig"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["py2many*", "targets*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "py2many.version.__version__"}

@@ -60,6 +60,54 @@ FAKE_ARGS = argparse.Namespace(
 LANGS = get_all_settings(FAKE_ARGS)
 
 
+
+
+
+
+import ast
+
+
+class ASTValidationError(Exception):
+    pass
+
+
+class ASTValidator(ast.NodeVisitor):
+
+    def visit_Break(self, node):
+        if not hasattr(node, "_in_loop"):
+            raise ASTValidationError("break outside loop")
+
+    def visit_Return(self, node):
+        if not hasattr(node, "_in_function"):
+            raise ASTValidationError("return outside function")
+
+    def visit_Assign(self, node):
+        for target in node.targets:
+            if not isinstance(target, (ast.Name, ast.Attribute, ast.Subscript)):
+                raise ASTValidationError(
+                    f"invalid assignment target {type(target)}"
+                )
+
+    def generic_visit(self, node):
+        super().generic_visit(node)
+
+
+def validate(tree):
+    """
+    Example of use:
+
+    for transform in pipeline:
+    tree = transform.run(tree)
+    validate(tree)
+    """
+    ASTValidator().visit(tree)
+
+
+
+
+
+
+
 def core_transformers(
         tree: ast.AST,
         trees: Sequence[ast.AST],

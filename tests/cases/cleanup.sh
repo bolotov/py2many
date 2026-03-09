@@ -1,7 +1,9 @@
 #!/bin/sh
 
 rm ./*.kt
-rm ./*.rust
+rm ./*.rs
 rm ./*.dart
+rm ./*.nim
+rm ./*.zig
 rm ./*.cpp
 

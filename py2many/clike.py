@@ -38,7 +38,7 @@ from py2many.exceptions import (
     AstTypeNotSupported,
     TypeNotSupported,
 )
-from py2many.result import Result  # noqa: F401
+# from py2many.result import Result  # noqa: F401
 
 ilong = i64
 ulong = u64

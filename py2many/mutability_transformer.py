@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from py2many.analysis import get_id
 from py2many.utilities.logger import setup_logger, NOOP, LogLevel
 
-log = setup_logger().unwrap_or(NOOP)
+log = setup_logger()
 
 
 def detect_mutable_vars(node: ast.AST) -> ast.AST:

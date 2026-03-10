@@ -29,7 +29,8 @@ from typing import (  # noqa: F401
     Type,
 )
 
-from py2many.analysis import IGNORED_MODULE_SET, get_id
+from py2many.analysis import IGNORED_MODULE_SET
+from py2many.ast_helpers import *
 from py2many.astx import LifeTime
 from py2many.exceptions import (
     AstCouldNotInfer,
@@ -38,6 +39,7 @@ from py2many.exceptions import (
     AstTypeNotSupported,
     TypeNotSupported,
 )
+
 # from py2many.result import Result  # noqa: F401
 
 ilong = i64
@@ -230,6 +232,12 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._no_prologue = no_prologue
         self._extension = extension
         self._throw_on_unimplemented = throw_on_unimplemented
+
+
+    def visit_all(self, nodes) -> str:
+        """Visit all nodes in a list."""
+        for node in nodes:
+            self.visit(node)
 
     def headers(self, meta=None) -> str:
         """Return the necessary headers for the target language as a string."""
@@ -1134,8 +1142,10 @@ class CLikeTranspiler(ast.NodeVisitor):
         """
         Python's 'del' statement has no direct equivalent.
         """
-        body = [self.visit(t) for t in node.targets]
-        return self.visit_unsupported_body(node, "del", body)
+        return self.visit_unsupported_body(node, "del", node.targets)
+        # WAS: double visit like this:
+        # body = [self.visit(t) for t in node.targets]
+        #return self.visit_unsupported_body(node, "del", body)
 
     def visit_Starred(self, node) -> str:
         """

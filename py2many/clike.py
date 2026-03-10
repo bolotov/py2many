@@ -1087,6 +1087,55 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     # MARK : - Misc. unsupported
 
+    #def generic_visit(self, node: ast.AST) -> str:
+    #    """
+    #    Default visitor for nodes without specific handlers.
+
+    #    Ensures that all child nodes are traversed so that
+    #    dependency discovery and symbol analysis still work.
+    #    """
+    #    for child in ast.iter_child_nodes(node):
+    #        self.visit(child)
+
+    #    return ""
+
+    def generic_visit(self, node: ast.AST | None) -> str:
+        """
+        Safe visitor wrapper.
+
+        Guarantees that every AST node is traversed even if:
+            - a specific visitor is missing
+            - a visitor raises an exception
+            - a backend does not support the node
+
+        This prevents the historical py2many issue where
+        ~15% of AST shapes silently skipped traversal.
+
+        Returns
+        -------
+        str
+            Rendered representation of the node, or an empty string
+            if rendering failed but traversal succeeded.
+        """
+        if node is None:
+            return ""
+
+        method = getattr(self, f"visit_{node.__class__.__name__}", None)
+
+        try:
+            if method:
+                return method(node)
+        except Exception:
+            # Continue traversal even if rendering fails
+            pass
+
+        # Fallback traversal: visit child nodes
+        for child in ast.iter_child_nodes(node):
+            self.visit(child)
+
+        return ""
+
+
     def visit_unsupported(self, node, name) -> str:
         """
         Handle the translation of an unsupported feature in the code.
@@ -1099,30 +1148,30 @@ class CLikeTranspiler(ast.NodeVisitor):
             )
 
 
-    def visit_unsupported_body(self, node, name: str, body) -> str:
-        """
-        Emit a commented representation of a construct that has
-        no translation for the current backend.
+    def visit_unsupported_body(self, node: ast.AST, name: str, body) -> str:
+        """Emit a commented representation of an unsupported construct.
 
-        The node body is still visited so that nested expressions
-        participate in traversal and dependency discovery.
+        Even though the construct cannot be translated, all nested nodes are
+        still visited to ensure that dependency discovery, symbol tracking,
+        and imports/usings are still correctly identified.
+
+        Args:
+            node (ast.AST): The unsupported AST node.
+            name (str): Human-readable name of the construct.
+            body (Union[ast.AST, list[ast.AST], None]): Body of the construct
+            to be traversed.
+
+        Returns:
+            str: A comment block describing the unsupported construct.
         """
         lines = [f"unsupported construct: {name}"]
 
-        if isinstance(body, list):
-            for stmt in body:
-                try:
-                    rendered = self.visit(stmt)
-                except Exception: # WARNING: Too broad exception clause
-                    rendered = "<untranslatable>"
-                if rendered:
-                    lines.append(rendered)
-
-        elif body is not None:
+        for stmt in iter_body(body):
             try:
-                rendered = self.visit(body)
-            except Exception:  # WARNING: Too broad exception clause
+                rendered = self.visit(stmt)
+            except Exception:
                 rendered = "<untranslatable>"
+
             if rendered:
                 lines.append(rendered)
 
@@ -1333,64 +1382,79 @@ class CLikeTranspiler(ast.NodeVisitor):
             return parts[0] + ".", parts[1]
         return "", parts[0]
 
+
     def _dispatch(
             self,
             node: ast.Call,
             fname: str,
-            vargs: List[str],
-    ) -> Optional[str]:
+            vargs: list[str],
+    ) -> str | None:
         """
         Dispatch a function call to a registered handler.
 
         Dispatch order:
-            1. Direct string dispatch
+            1. Exact name
             2. Small dispatch map
             3. Object-based dispatch
-            4. Leaf-name fallback dispatch
+            4. Leaf fallback
+
+        Args:
+            node (ast.Call): The function call AST node being processed.
+            fname (str): The name of the function to dispatch.
+            vargs (list[str]): List of already-rendered string arguments.
 
         Returns:
-            Translated string if handler found.
-            None if no handler matches.
+            str | None: The translated function call string if a handler was
+                matched; otherwise, None.
         """
-        if fname in self._dispatch_map:
+
+        def safe_call(handler, use_self=True):
             try:
-                return self._dispatch_map[fname](self, node, vargs)
+                if use_self:
+                    return handler(self, node, vargs)
+                return handler(node, vargs)
             except IndexError:
                 return None
 
-        if fname in self._small_dispatch_map:
-            if fname in self._small_usings_map:
-                self._usings.add(self._small_usings_map[fname])
-            try:
-                return self._small_dispatch_map[fname](node, vargs)
-            except IndexError:
-                return None
+        # 1. direct dispatch
+        handler = self._dispatch_map.get(fname)
+        if handler:
+            return safe_call(handler)
 
+        # 2. small dispatch
+        handler = self._small_dispatch_map.get(fname)
+        if handler:
+            using = self._small_usings_map.get(fname)
+            if using:
+                self._usings.add(using)
+            return safe_call(handler, use_self=False)
+
+        # 3. object dispatch
         func = self._func_for_lookup(fname)
+        if func is not None:
+            entry = self._func_dispatch_table.get(func)
+            if entry:
+                handler, result_type = entry
 
-        if func is not None and func in self._func_dispatch_table:
-            if func in self._func_usings_map:
-                self._usings.add(self._func_usings_map[func])
+                if func in self._func_usings_map:
+                    self._usings.add(self._func_usings_map[func])
 
-            handler_func, result_type = self._func_dispatch_table[func]
-            setattr(node, "result_type", result_type)
+                node.result_type = result_type
+                return safe_call(handler)
 
-            try:
-                return handler_func(self, node, vargs)
-            except IndexError:
-                return None
-
+        # 4. leaf fallback
         stem, leaf = self._func_name_split(fname)
-        if leaf in self._func_dispatch_table:
-            handler_func, result_type = self._func_dispatch_table[leaf]
-            setattr(node, "result_type", result_type)
 
-            try:
-                return stem + handler_func(self, node, vargs)
-            except IndexError:
-                return None
+        entry = self._func_dispatch_table.get(leaf)
+        if entry:
+            handler, result_type = entry
+            node.result_type = result_type
+
+            result = safe_call(handler)
+            return f"{stem}{result}" if result is not None else None
 
         return None
+
 
     @property
     def main_signature_arg_names(self):

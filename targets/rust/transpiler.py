@@ -160,6 +160,7 @@ class RustTranspiler(CLikeTranspiler):
         if self._features:
             features = ", ".join(sorted(list(set(self._features))))
             return f"#![feature({features})]"
+        return None
 
     def extension_module(self, tree) -> str:
         if self._extension:
@@ -251,7 +252,7 @@ class RustTranspiler(CLikeTranspiler):
     def visit_arg(self, node):
         id = get_id(node)
         if id == "self":
-            return (None, "self")
+            return None, "self"
         typename = "T"
         if node.annotation:
             if not self._extension:
@@ -266,7 +267,7 @@ class RustTranspiler(CLikeTranspiler):
             if hasattr(node, "container_type"):
                 # Python passes by reference by default. Rust needs explicit borrowing
                 typename = f"&{mut}{typename}"
-        return (typename, id)
+        return typename, id
 
     def visit_Return(self, node) -> str:
         fndef = None
@@ -341,7 +342,7 @@ class RustTranspiler(CLikeTranspiler):
         if len(splits) == 2:
             return tuple(splits)
         else:
-            return ("", splits[0])
+            return "", splits[0]
 
     def _visit_struct_literal(self, node, fname: str, fndef: ast.ClassDef) -> str:
         vargs = []  # visited args
@@ -412,7 +413,7 @@ class RustTranspiler(CLikeTranspiler):
         return "" + super().visit_Str(node) + ""
 
     def visit_Bytes(self, node) -> str:
-        bytes_str = node.s
+        bytes_str = node.value # WAS: node.s
         bytes_str = bytes_str.replace(b'"', b'\\"')
         return 'b"' + bytes_str.decode("ascii", "backslashreplace") + '"'
 
@@ -530,7 +531,7 @@ class RustTranspiler(CLikeTranspiler):
             camel_member_id = camel_case(member_id)
             lower_member_id = member_id.lower()
             typename = node.declarations_with_defaults.get(member_id, None)
-            if typename == None:
+            if typename is None:
                 variants.append(f"{member_id},")
             else:
                 typename, _ = typename
@@ -584,7 +585,7 @@ class RustTranspiler(CLikeTranspiler):
         fields = []
         index = 0
         for declaration, typename in declarations.items():
-            if typename == None:
+            if typename is None:
                 typename = f"ST{index}"
                 index += 1
             fields.append(f"pub {declaration}: {typename},")
@@ -745,7 +746,8 @@ class RustTranspiler(CLikeTranspiler):
     def visit_Assert(self, node) -> str:
         return f"assert!({self.visit(node.test)});"
 
-    def _compute_kw(self, node, target) -> str:
+    @staticmethod
+    def _compute_kw(node, target) -> str:
         kw = "let"
         mut = is_mutable(node.scopes, get_id(target))
         if is_global(node) or getattr(node, "class_assignment", False):
@@ -770,8 +772,9 @@ class RustTranspiler(CLikeTranspiler):
         right_type = self._typename_from_annotation(right)
         return left_type != right_type and left_type != self._default_type
 
+    @staticmethod
     def _assign_cast(
-        self, value_str: str, cast_to: str, python_annotation, rust_annotation
+            value_str: str, cast_to: str, python_annotation, rust_annotation
     ) -> str:
         # python/rust annotations provided to customize the cast if necessary
         return f"{value_str} as {cast_to}"
@@ -803,7 +806,7 @@ class RustTranspiler(CLikeTranspiler):
         if isinstance(target, ast.Subscript) or isinstance(target, ast.Attribute):
             target = self.visit(target)
             value = self.visit(node.value)
-            if value == None:
+            if value is None:
                 value = "None"
             return f"{target} = {value};"
 

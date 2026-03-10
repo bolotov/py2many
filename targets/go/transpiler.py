@@ -2,14 +2,19 @@ import ast
 import textwrap
 from typing import List
 
-from py2many.analysis import IGNORED_MODULE_SET, get_id, is_global, is_void_function
+from py2many.analysis import (
+    IGNORED_MODULE_SET, get_id, is_global, is_void_function,
+)
 from py2many.clike import _AUTO_INVOKED, class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
-from py2many.exceptions import AstClassUsedBeforeDeclaration, AstCouldNotInfer
+from py2many.exceptions import (
+    AstClassUsedBeforeDeclaration, AstCouldNotInfer
+)
 from py2many.rewriters import camel_case, capitalize_first
 from py2many.rewriters.rename_transformer import rename
-from py2many.tracer import defined_before, is_class_or_module, is_enum, is_list
-
+from py2many.tracer import (
+    defined_before, is_class_or_module, is_enum, is_list
+)
 from .clike import CLikeTranspiler
 from .inference import get_inferred_go_type
 from .plugins import (
@@ -43,8 +48,9 @@ class GoMethodCallRewriter(ast.NodeTransformer):
                 targets=[ast.Name(id=fname.value.id, lineno=node.lineno)],
                 value=node,
                 lineno=node.lineno,
-                scopes=node.scopes,
-            )
+                scopes=node.scopes, # WARNING: ast.Assign doesn't have 'scopes'
+            ) #FIXME: Unexpected argument(s)Possible callees:
+            # Assign(self: Assign, targets: list[expr], value: expr, type_comment: str | None | Any = None, *, lineno: int = ..., col_offset: int = ..., end_lineno: _EndPositionT = ..., end_col_offset: _EndPositionT = ...)Assign(self: Assign, targets: list[expr] = ..., *, value: expr, type_comment: str | None | Any = None, *, lineno: int = ..., col_offset: int = ..., end_lineno: _EndPositionT = ..., end_col_offset: _EndPositionT = ...)
             return ret
         return node
 
@@ -92,7 +98,8 @@ class GoVisibilityRewriter(ast.NodeTransformer):
         return node
 
     def visit_FunctionDef(self, node):
-        if hasattr(node, "scopes") and isinstance(node.scopes[-2], ast.Module):
+        if (hasattr(node, "scopes")
+                and isinstance(node.scopes[-2], ast.Module)):
             old_name = get_id(node)
             if old_name is not None:
                 if "_" in old_name:
@@ -221,11 +228,11 @@ class GoTranspiler(CLikeTranspiler):
     def visit_arg(self, node):
         id = get_id(node)
         if id == "self":
-            return (None, "self")
+            return None, "self"
         typename = "T"
         if node.annotation:
             typename = self._typename_from_annotation(node)
-        return (typename, id)
+        return typename, id
 
     def visit_Lambda(self, node) -> str:
         typenames, args = self.visit(node.args)
@@ -259,7 +266,9 @@ class GoTranspiler(CLikeTranspiler):
 
         return f"{value_id}.{attr}"
 
-    def _visit_struct_literal(self, node, fname: str, fndef: ast.ClassDef) -> str:
+    def _visit_struct_literal(
+            self, node, fname: str, fndef: ast.ClassDef
+    ) -> str:
         vargs = []  # visited args
         if not hasattr(fndef, "declarations"):
             raise AstClassUsedBeforeDeclaration(fndef, node)
@@ -323,8 +332,12 @@ class GoTranspiler(CLikeTranspiler):
         return "" + super().visit_Str(node) + ""
 
     def visit_Bytes(self, node) -> str:
-        bytes_str = f"{node.s}"
-        return bytes_str.replace("'", '"')  # replace single quote with double quote
+        """
+        Formats bytes literals as strings since Go doesn't
+        have a bytes literal type, and replace single quote with double quote
+        """
+        bytes_str = f"{node.value}" # WAS: node.s
+        return bytes_str.replace("'", '"')
 
     def _visit_container_compare(self, node) -> str:
         left = self.visit(node.left)
@@ -434,7 +447,8 @@ class GoTranspiler(CLikeTranspiler):
         body = "\n".join(body)
         return f"type {node.name} struct {{\n{fields}\n}}\n{body}\n"
 
-    def _visit_enum(self, node, typename, members) -> str:
+    @staticmethod
+    def _visit_enum(node, typename, members) -> str:
         ret = f"type {node.name} {typename}\n\n"
         fields = []
         for i, (member, var) in enumerate(members):
@@ -572,8 +586,9 @@ class GoTranspiler(CLikeTranspiler):
             left_type != self._default_type and right_type != self._default_type
         )
 
+    @staticmethod
     def _assign_cast(
-        self, value_str: str, cast_to: str, python_annotation, go_annotation
+            value_str: str, cast_to: str, python_annotation, go_annotation
     ) -> str:
         # python/go annotations provided to customize the cast if necessary
         return f"{cast_to}({value_str})"
@@ -594,7 +609,7 @@ class GoTranspiler(CLikeTranspiler):
         if isinstance(target, ast.Subscript) or isinstance(target, ast.Attribute):
             target = self.visit(target)
             value = self.visit(node.value)
-            if value == None:
+            if value is None:
                 value = "None"
             return f"{target} = {value}"
 

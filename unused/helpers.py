@@ -20,8 +20,9 @@ def get_ann_repr(node, parse_func=None, default=None, sep=None) -> str:
     :param sep: An optional tuple of (open, close) separators to use
     for subscript representations (e.g., for generics)
 
-    :return: A string representation of the node, or the default value
-    if it cannot be represented
+    Returns:
+        str: A representation of the node,
+        or the default value if it cannot be represented
     """
     if sep is None:
         sep = ["[", "]"]

@@ -258,7 +258,7 @@ class CppTranspiler(CLikeTranspiler):
         fields = []
         index = 0
         for declaration, typename in declarations.items():
-            if typename == None:
+            if typename is None:
                 typename = f"ST{index}"
                 index += 1
             fields.append(f"{typename} {declaration}")
@@ -281,7 +281,8 @@ class CppTranspiler(CLikeTranspiler):
         buf += ["};"]
         return "\n".join(buf) + "\n"
 
-    def _visit_enum(self, node, typename: str, fields: List[Tuple]) -> str:
+    @staticmethod
+    def _visit_enum(node, typename: str, fields: List[Tuple]) -> str:
         fields_list = []
 
         for field, value in fields:
@@ -358,8 +359,7 @@ class CppTranspiler(CLikeTranspiler):
     def visit_For(self, node) -> str:
         target = self.visit(node.target)
         it = self.visit(node.iter)
-        buf = []
-        buf.append(f"for(auto {target} : {it}) {{")
+        buf = [f"for(auto {target} : {it}) {{"]
         buf.extend([self.visit(c) for c in node.body])
         buf.append("}")
         return "\n".join(buf)
@@ -367,7 +367,7 @@ class CppTranspiler(CLikeTranspiler):
     def visit_arg(self, node):
         node_id = get_id(node)
         if node_id == "self":
-            return (None, "self")
+            return None, "self"
         node_id, _ = self._check_keyword(node_id)
         typename = "T"
         if node.annotation:
@@ -380,7 +380,7 @@ class CppTranspiler(CLikeTranspiler):
             # TODO: Generalize this to other types
             if "std::map" in typename:
                 self._headers.append("#include <map>")
-        return (typename, node_id)
+        return typename, node_id
 
     def visit_Lambda(self, node) -> str:
         _, args = self.visit(node.args)
@@ -396,7 +396,7 @@ class CppTranspiler(CLikeTranspiler):
 
     def visit_Bytes(self, node) -> str:
         byte_literal = super().visit_Bytes(node)
-        n = len(node.s)
+        n = len(node.value)  # WAS: node.s
         return f"((std::array<unsigned char, {n}>){byte_literal})"
 
     def visit_Name(self, node) -> str:
@@ -422,8 +422,7 @@ class CppTranspiler(CLikeTranspiler):
         return s
 
     def _make_block(self, node):
-        buf = []
-        buf.append("({")
+        buf = ["({"]
         buf.extend([self.visit(child) for child in node.body])
         if not buf[-1].endswith(";"):
             buf.append(";")

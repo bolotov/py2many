@@ -165,6 +165,7 @@ class VariableTransformer(ast.NodeTransformer, ScopeMixin):
 
 
 class LHSAnnotationTransformer(ast.NodeTransformer):
+    """Annotate nodes on the LHS of an assigment"""
     def __init__(self):
         super().__init__()
         self._lhs = False

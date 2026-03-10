@@ -244,7 +244,8 @@ class CLikeTranspiler(ast.NodeVisitor):
         """Return any type aliases needed for the target language as a string."""
         return ""
 
-    def features(self) -> str:
+    @staticmethod
+    def features() -> str:
         """Return any language features needed for the target language as a string."""
         return ""
 
@@ -259,15 +260,25 @@ class CLikeTranspiler(ast.NodeVisitor):
         """
         return self._extension
 
-    def extension_module(self) -> str:
+    @staticmethod
+    def extension_module() -> str:
         """Return the module name to use for an extension build, if applicable."""
         return ""
 
-    def comment(self, text) -> str:
+    @staticmethod
+    def comment(text) -> str:
         """Return a comment string for the target language."""
         return f"/* {text} */"
 
-    def _cast(self, name: str, to) -> str:
+    @staticmethod
+    def comment_block(lines: list[str]) -> str:
+        """Emit a block comment."""
+        body = "\n".join(lines)
+        return f"/*\n{body}\n*/"
+
+
+    @staticmethod
+    def _cast(name: str, to) -> str:
         """Return a string representing a cast of name to the type represented by to in the target language."""
         return f"({to}) {name}"
 
@@ -382,57 +393,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         return cls._combine_value_index(value_type, index_type)
 
 
-#     @classmethod
-#     def _typename_from_type_node(
-#             cls,
-#             node: ast.AST,
-#     ) -> Union[List[str], str, None]:
-#         """
-#         Extract a target-specific type name from an annotation AST node.
-#
-#         May attach `container_type` attribute to `ast.Subscript` nodes.
-#
-#         Returns:
-#             - str for simple types
-#             - List[str] for tuple types
-#             - None if inference fails
-#         """
-#         if isinstance(node, ast.Name):
-#             return cls._map_type(
-#                 get_id(node),
-#                 getattr(node, "lifetime", LifeTime.UNKNOWN),
-#             )
-#
-#         if isinstance(node, ast.Constant) and node.value is not None:
-#             return node.value # WARNING: Incompatible return value type (got "str | bytes | int | float | complex | EllipsisType", expected "list[str] | str | None")
-#
-#         if isinstance(node, ast.ClassDef):
-#             return get_id(node)
-#
-#         if isinstance(node, ast.Tuple):
-#             return [cls._typename_from_type_node(e) for e in node.elts] # WARNING: List comprehension has incompatible type List[list[str] | str | None]; expected List[str]
-#
-#         if isinstance(node, ast.Attribute):
-#             node_id = get_id(node)
-#             if node_id and node_id.startswith("typing."):
-#                 node_id = node_id.split(".")[1]
-#             return node_id
-#
-#         if isinstance(node, ast.Subscript):
-#             slice_value = cls._slice_value(node)
-#             value_type, index_type = tuple(
-#                 map(cls._typename_from_type_node, (node.value, slice_value))
-#             )
-#
-#             value_type = cls._map_container_type(value_type) # WARNING: Argument 1 to "_map_container_type" of "CLikeTranspiler" has incompatible type "list[str] | str | None"; expected "str"
-#             node.container_type = (value_type, index_type)
-#
-#             return cls._combine_value_index(value_type, index_type)
-#
-#         return cls._default_type
-
-
-
     @classmethod
     def _typename_from_type_node(
             cls,
@@ -505,36 +465,6 @@ class CLikeTranspiler(ast.NodeVisitor):
 
             case _: # Fallback
                 return cls._default_type
-
-
-    @classmethod
-#     def _generic_typename_from_type_node(cls, node) -> Union[List, str, None]:
-#         """
-#         Extract a generic type name from a type annotation node in
-#         the AST without doing any target specific mapping.
-#         """
-#         if isinstance(node, ast.Name):
-#             return get_id(node)
-#         elif isinstance(node, ast.Constant):
-#             return node.value
-#         elif isinstance(node, ast.ClassDef):
-#             return get_id(node)
-#         elif isinstance(node, ast.Tuple):
-#             return [cls._generic_typename_from_type_node(e) for e in node.elts]
-#         elif isinstance(node, ast.Attribute):
-#             node_id = get_id(node)
-#             if node_id is not None and node_id.startswith("typing."):
-#                 node_id = node_id.split(".")[1]
-#             return node_id
-#         elif isinstance(node, ast.Subscript):
-#             slice_value = cls._slice_value(node)
-#             (value_type, index_type) = tuple(
-#                 map(cls._generic_typename_from_type_node, (node.value, slice_value))
-#             )
-#             node.generic_container_type = (value_type, index_type)
-#             return f"{value_type}[{index_type}]"
-#         return cls._default_type
-
 
     @classmethod
     def _generic_typename_from_type_node(
@@ -647,26 +577,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         return self.comment("pass")
 
 
-#     def visit_Module(self, node) -> str:
-#         """Visit the module node, which is the root of the AST for a Python file."""
-#         docstring = getattr(node, "docstring_comment", None)
-#         buf = [self.comment(docstring.value)] if docstring is not None else []
-#         filename = getattr(node, "__file__", None)
-#         self._reset()
-#         if filename is not None:
-#             self._module = Path(filename).stem
-#         body_dict: Dict[ast.AST, str] = OrderedDict()
-#         for b in node.body:
-#             if not isinstance(b, ast.FunctionDef):
-#                 body_dict[b] = self.visit(b)
-#         # Second pass to handle functiondefs whose body
-#         # may refer to other members of node.body
-#         for b in node.body:
-#             if isinstance(b, ast.FunctionDef):
-#                 body_dict[b] = self.visit(b)
-#
-#         buf += [body_dict[b] for b in node.body]
-#         return "\n".join(buf)
 
     def visit_Module(self, node) -> str:
         """Visit a module node and emit the top-level translation unit.
@@ -842,17 +752,17 @@ class CLikeTranspiler(ast.NodeVisitor):
         return node.id
 
 
-    def visit_Ellipsis(self, node: ast.Ellipsis) -> str: # TODO: Fix to ast.Constant properly. FIXME
-        """
-        Visit an ellipsis node ('...').
-
-        Args:
-            node (ast.Ellipsis): The ellipsis AST node.
-
-        Returns:
-            str: A comment indicating unsupported ellipsis in the target language.
-        """
-        return self.comment("...")
+    # def visit_Ellipsis(self, node) -> str: # TODO: Fix to ast.Constant properly. FIXME
+    #     """
+    #     Visit an ellipsis node ('...').
+    #
+    #     Args:
+    #         node (ast.Ellipsis): The ellipsis AST node.
+    #
+    #     Returns:
+    #         str: A comment indicating unsupported ellipsis in the target language.
+    #     """
+    #     return self.comment("...")
 
 
     def visit_NameConstant(self, node):
@@ -872,8 +782,8 @@ class CLikeTranspiler(ast.NodeVisitor):
         elif node.value is None:
             return "NULL"
         elif node.value is Ellipsis:
-            # FIXME: this must be directed elsewhere as ast.Ellipsis is gone:
-            return self.visit_Ellipsis(node) # WARNING: Expected type 'Ellipsis', got 'NameConstant' instead
+            return self.comment("...")  #  ast.Ellipsis is gone:
+            # return self.visit_Ellipsis(node) # WARNING: Expected type 'Ellipsis', got 'NameConstant' instead
         else:
             return str(node.value)
 
@@ -958,7 +868,7 @@ class CLikeTranspiler(ast.NodeVisitor):
                 - List of argument names for the function signature.
         """
         args = [self.visit(arg) for arg in node.args]
-        if args == []:
+        if not args:
             return [], []
         typenames, args = map(list, zip(*args))
         return typenames, args
@@ -980,8 +890,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         an if statement with a test condition of
         True and no else clause is used to create a block of statements.
         """
-        buf = []
-        buf.append("({")
+        buf = ["({"]
         buf.extend([self.visit(child) for child in node.body])
         buf.append("})")
         return "\n".join(buf)
@@ -1040,27 +949,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         else:
             buf.append("}")
         return "\n".join(buf)
-        """
-        if self.is_block(node):
-        return self._make_block(node)
-
-        # Format the header: if (condition) { OR if condition {
-        test_code = self.visit(node.test)
-        header = f"if({test_code}) {{" if use_parens else f"if {test_code} {{"
-        
-        # Process body and filter out None/Empty results in one pass
-        body = "\n".join(filter(None, (self.visit(child) for child in node.body)))
-         
-        buf = [header, body]
-
-        if node.orelse:
-            # Process else/elif branch
-            else_body = "\n".join(filter(None, (self.visit(child) for child in node.orelse)))
-            buf.append(f"}} else {{\n{else_body}")
-
-        buf.append("}")
-        return "\n".join(buf)
-        """
 
     def visit_Continue(self, node) -> str:
         """Visit a continue statement node,
@@ -1179,7 +1067,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         else:
             type_str = self._typename_from_annotation(node)
         val = self.visit(node.value) if node.value is not None else None
-        return (target, type_str, val)
+        return target, type_str, val
 
     def set_continue_on_unimplemented(self):
         """
@@ -1187,6 +1075,9 @@ class CLikeTranspiler(ast.NodeVisitor):
         an unimplemented feature is encountered.
         """
         self._throw_on_unimplemented = False
+
+
+    # MARK : - Misc. unsupported
 
     def visit_unsupported(self, node, name) -> str:
         """
@@ -1199,24 +1090,49 @@ class CLikeTranspiler(ast.NodeVisitor):
                 f"{name} unimplemented on line {node.lineno}:{node.col_offset}"
             )
 
-    def visit_unsupported_body(self, node, name, body) -> str:
+
+    def visit_unsupported_body(self, node, name: str, body) -> str:
         """
-        Handle the translation of an unsupported feature
-        in the code that has a body of statements.
+        Emit a commented representation of a construct that has
+        no translation for the current backend.
+
+        The node body is still visited so that nested expressions
+        participate in traversal and dependency discovery.
         """
-        # TODO: body should not be simply ignored
-        #  but insted somehow included as som kind of a comment
-        #  AND/OR debug must be emitted
-        return self.visit_unsupported(node, name)
+        lines = [f"unsupported construct: {name}"]
+
+        if isinstance(body, list):
+            for stmt in body:
+                try:
+                    rendered = self.visit(stmt)
+                except Exception: # WARNING: Too broad exception clause
+                    rendered = "<untranslatable>"
+                if rendered:
+                    lines.append(rendered)
+
+        elif body is not None:
+            try:
+                rendered = self.visit(body)
+            except Exception:  # WARNING: Too broad exception clause
+                rendered = "<untranslatable>"
+            if rendered:
+                lines.append(rendered)
+
+        lines.append("end unsupported")
+
+        return self.comment_block(lines)
+
 
     def visit_NamedExpr(self, node) -> str:
+        """
+        Assignment expressions are not lowered for C-like targets.
+        """
         target = self.visit(node.target)
         return self.visit_unsupported_body(node, f"named expr {target}", node.value)
 
     def visit_Delete(self, node) -> str:
         """
-        Visit a delete statement node,
-        which represents a del statement in Python.
+        Python's 'del' statement has no direct equivalent.
         """
         body = [self.visit(t) for t in node.targets]
         return self.visit_unsupported_body(node, "del", body)
@@ -1231,30 +1147,26 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     def visit_Await(self, node) -> str:
         """
-        Visit an await expression node,
-        which represents the use of
-        the await keyword in asynchronous code.
+        Await expressions require coroutine support which is not implemented.
         """
         return self.visit_unsupported_body(node, "await", node.value)
 
     def visit_AsyncFor(self, node) -> str:
+        """Async iteration is not supported."""
         target = self.visit(node.target)
-        iter = self.visit(node.iter)
+        iterator = self.visit(node.iter)
+
         return self.visit_unsupported_body(
-            node, f"async for {target} in {iter}", node.body
+            node, f"async for {target} in {iterator}", node.body
         )
 
     def visit_AsyncWith(self, node) -> str:
-        """Visit an async with statement node, which represents the use of the async with syntax for asynchronous context managers in Python."""
+        """Async context managers are not supported."""
         items = [self.visit(i) for i in node.items]
         return self.visit_unsupported_body(node, f"async with {items}", node.body)
 
     def visit_YieldFrom(self, node) -> str:
-        """
-        Visit a yield from expression node,
-        which represents the use of the yield from
-        syntax for delegating to a subgenerator in Python.
-        """
+        """Generator delegation is not supported."""
         return self.visit_unsupported_body(node, "yield from", node.value)
 
     def visit_AsyncFunctionDef(self, node) -> str:
@@ -1284,21 +1196,30 @@ class CLikeTranspiler(ast.NodeVisitor):
             node, f"dict comprehension ({key}, {value})", node.generators
         )
 
+
+    # MARK: - Generators, comprehensions
+
     def visit_GeneratorExp(self, node) -> str:
-        """Visit a generator expression node, which represents the use of generator expressions in Python, such as "(x for x in iterable)". This method handles the translation of generator expressions, including the element expression and the generators that define the iteration. It delegates to the visit_unsupported_body method to handle the translation of the generator expression, allowing for a consistent way to represent these constructs in the target language, even if they do not have a direct equivalent."""
-        self.visit_unsupported_body(node, "generator expression elts", node.elt)
-        return self.visit_unsupported_body(node, "generators", node.generators)
+        """Generator expressions like ``(x for x in iterable)``."""
+        body = [node.elt] + node.generators
+        return self.visit_unsupported_body(node, "generator expression", body)
 
     def visit_ListComp(self, node) -> str:
-        """Visit a list comprehension node, which represents the use of list comprehensions in Python, such as "[x for x in iterable]". This method handles the translation of list comprehensions, including the element expression and the generators that define the iteration. It delegates to the visit_GeneratorExp method to handle the translation of the list comprehension, allowing for a consistent way to represent these constructs in the target language, even if they do not have a direct equivalent. By default, it treats list comprehensions as generator expressions, but this can be overridden in subclasses to provide a different translation if needed."""
+        """List comprehension such as ``[x for x in iterable]``."""
         return self.visit_GeneratorExp(node)  # by default, they are the same
 
     def visit_SetComp(self, node) -> str:
-        """Visit a set comprehension node, which represents the use of set comprehensions in Python, such as "{x for x in iterable}". This method handles the translation of set comprehensions, including the element expression and the generators that define the iteration. It delegates to the visit_GeneratorExp method to handle the translation of the set comprehension, allowing for a consistent way to represent these constructs in the target language, even if they do not have a direct equivalent. By default, it treats set comprehensions as generator expressions, but this can be overridden in subclasses to provide a different translation if needed."""
+        """Set comprehension node, such as "{x for x in iterable}"."""
         return self.visit_GeneratorExp(node)  # by default, they are the same
 
+
+    # MARK: - Class definition handling
+
     def visit_ClassDef(self, node):
-        """Visit a class definition node, which represents the definition of a class in the code. This method handles the translation of class definitions"""
+        """
+        Visit a class definition node.
+        This method handles the translation of class definitions
+        """
         bases = [get_id(base) for base in node.bases]
         if set(bases) == {"Enum", "str"}:
             return self.visit_StrEnum(node)
@@ -1339,34 +1260,34 @@ class CLikeTranspiler(ast.NodeVisitor):
         """
         return self.visit_unsupported_body(node, "except handler", node.body)
 
+
     def visit_Try(self, node, finallybody=None) -> str:
         """
-        Visit a try statement node, which represents a try-except block in the code.
-        This method handles the translation of try statements,
-        including their body, except handlers, and finally clause.
+        Exception handling is not implemented for C-like targets.
         """
-
-        buf = self.visit_unsupported_body(node, "try_dummy", node.body)
-
-        for handler in node.handlers:
-            buf += self.visit(handler)
-        # buf.append("\n".join(excepts));
-
+        lines = [self.visit_unsupported_body(node, "try", node.body)]
+        for each_handler in node.handlers:
+            lines.append(self.visit(each_handler))
         if finallybody:
-            buf += self.visit_unsupported_body(node, "finally_dummy", finallybody)
-
-        return "\n".join(buf)
+            lines.append(self.visit_unsupported_body(node, "finally", finallybody))
+        return "\n".join(lines)
 
     def visit_Raise(self, node) -> str:
-        """Visit a raise statement node, which represents a raise statement in the code.
-        This method checks if the raise statement includes an exception to be raised.
         """
+        Translate a raise statement.
+
+        Most C-like targets do not implement Python exception semantics.
+        The construct is therefore emitted as an unsupported block while
+        still visiting the exception expression.
+        """
+
         if node.exc is not None:
             return self.visit_unsupported_body(node, "raise", node.exc)
-            return f"raise!({self.visit(node.exc)}); //unsupported"
-        # This handles the case where `raise` is used without
-        # specifying the exception.
+
         return self.visit_unsupported(node, "raise")
+
+
+    # MARK: - _* methods
 
     def _func_for_lookup(self, fname: str) -> Optional[Any]:
         """
@@ -1388,7 +1309,8 @@ class CLikeTranspiler(ast.NodeVisitor):
 
         return func
 
-    def _func_name_split(self, fname: str) -> Tuple[str, str]:
+    @staticmethod
+    def _func_name_split(fname: str) -> Tuple[str, str]:
         """
         Split a dotted function name into (stem, leaf).
 
@@ -1435,22 +1357,26 @@ class CLikeTranspiler(ast.NodeVisitor):
                 return None
 
         func = self._func_for_lookup(fname)
+
         if func is not None and func in self._func_dispatch_table:
             if func in self._func_usings_map:
                 self._usings.add(self._func_usings_map[func])
 
-            handler, node.result_type = self._func_dispatch_table[func]
+            handler_func, result_type = self._func_dispatch_table[func]
+            setattr(node, "result_type", result_type)
 
             try:
-                return handler(self, node, vargs)
+                return handler_func(self, node, vargs)
             except IndexError:
                 return None
 
         stem, leaf = self._func_name_split(fname)
         if leaf in self._func_dispatch_table:
-            handler, node.result_type = self._func_dispatch_table[leaf]
+            handler_func, result_type = self._func_dispatch_table[leaf]
+            setattr(node, "result_type", result_type)
+
             try:
-                return stem + handler(self, node, vargs)
+                return stem + handler_func(self, node, vargs)
             except IndexError:
                 return None
 

@@ -28,7 +28,7 @@ class RustTranspilerPlugins:
             typename_with_default,
         ) in node.declarations_with_defaults.items():
             typename, default_value = typename_with_default
-            if typename == None:
+            if typename is None:
                 return None
             if default_value is not None and typename != "bool":
                 default_value = self.visit(default_value)
@@ -93,24 +93,29 @@ class RustTranspilerPlugins:
             return f"f.write_bytes({vargs[0]})"
         raise Exception("write() with more than one argument")
 
-    def visit_named_temp_file(self, node, vargs):
+    @staticmethod
+    def visit_named_temp_file(node, vargs):
         node.annotation = ast.Name(id="tempfile._TemporaryFileWrapper")
         node.result_type = True
         return "NamedTempFile::new()"
 
-    def visit_textio_read(self, node, vargs):
+    @staticmethod
+    def visit_textio_read(node, vargs):
         # TODO
         return None
 
-    def visit_textio_write(self, node, vargs):
+    @staticmethod
+    def visit_textio_write(node, vargs):
         # TODO
         return None
 
-    def visit_ap_dataclass(self, cls):
+    @staticmethod
+    def visit_ap_dataclass(cls):
         # Do whatever transformation the decorator does to cls here
         return cls
 
-    def visit_range(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_range(node, vargs: List[str]) -> str:
         if len(node.args) == 1:
             return f"(0..{vargs[0]})"
         elif len(node.args) == 2:
@@ -122,9 +127,10 @@ class RustTranspilerPlugins:
             f"encountered range() call with unknown parameters: range({vargs})"
         )
 
-    def visit_print(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_print(node, vargs: List[str]) -> str:
         placeholders = []
-        for n in node.args:
+        for _ in node.args:
             placeholders.append("{}")
         return 'println!("{}",{});'.format(" ".join(placeholders), ", ".join(vargs))
 

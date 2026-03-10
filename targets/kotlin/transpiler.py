@@ -157,14 +157,14 @@ class KotlinTranspiler(CLikeTranspiler):
         return "return"
 
     def visit_arg(self, node):
-        id = get_id(node)
-        if id == "self":
-            return (None, "self")
-        id, _ = self._check_keyword(id)
+        this_id = get_id(node)
+        if this_id == "self":
+            return None, "self"
+        this_id, _ = self._check_keyword(id)
         typename = "T"
         if node.annotation:
             typename = self._typename_from_annotation(node)
-        return (typename, id)
+        return typename, this_id
 
     def visit_Lambda(self, node) -> str:
         _, args = self.visit(node.args)
@@ -224,8 +224,7 @@ class KotlinTranspiler(CLikeTranspiler):
     def visit_For(self, node) -> str:
         target = self.visit(node.target)
         it = self.visit(node.iter)
-        buf = []
-        buf.append(f"for ({target} in {it}) {{")
+        buf = [f"for ({target} in {it}) {{"]
         buf.extend([self.visit(c) for c in node.body])
         buf.append("}")
         return "\n".join(buf)
@@ -234,7 +233,7 @@ class KotlinTranspiler(CLikeTranspiler):
         return "" + super().visit_Str(node) + ""
 
     def visit_Bytes(self, node) -> str:
-        bytes_str = f"{node.s}"
+        bytes_str = f"{node.value}"  # replaced .s with .value
         return bytes_str.replace("'", '"')  # replace single quote with double quote
 
     def visit_Name(self, node) -> str:
@@ -250,8 +249,7 @@ class KotlinTranspiler(CLikeTranspiler):
             return super().visit_NameConstant(node)
 
     def _make_block(self, node):
-        buf = []
-        buf.append("if (true) {")
+        buf = ["if (true) {"]
         buf.extend([self.visit(child) for child in node.body])
         buf.append("}")
         return "\n".join(buf)
@@ -264,25 +262,23 @@ class KotlinTranspiler(CLikeTranspiler):
 
     def visit_UnaryOp(self, node) -> str:
         if isinstance(node.op, ast.USub):
-            if isinstance(node.operand, (ast.Call, ast.Num)):
-                # Shortcut if parenthesis are not needed
-                return f"-{self.visit(node.operand)}"
-            else:
-                return f"-({self.visit(node.operand)})"
-        else:
-            return super().visit_UnaryOp(node)
+            operand = self.visit(node.operand)
+            if isinstance(node.operand, (ast.Call, ast.Constant)):
+                return f"-{operand}"
+            return f"-({operand})"
+        return super().visit_UnaryOp(node)
 
     def visit_BinOp(self, node) -> str:
         if (
-            isinstance(node.left, ast.List)
-            and isinstance(node.op, ast.Mult)
-            and isinstance(node.right, ast.Num)
+                isinstance(node.left, ast.List)
+                and isinstance(node.op, ast.Mult)
+                and isinstance(node.right, ast.Constant)
+                and isinstance(node.right.value, (int, float))
         ):
-            num = self.visit(node.right)
+            num = node.right.value
             elt = self.visit(node.left.elts[0])
             return f"Array({num}) {{ {elt} }}"
-        else:
-            return super().visit_BinOp(node)
+        return super().visit_BinOp(node)
 
     def visit_ClassDef(self, node) -> str:
         extractor = DeclarationExtractor(KotlinTranspiler())
@@ -306,11 +302,11 @@ class KotlinTranspiler(CLikeTranspiler):
         fields = []
         index = 0
         for declaration, typename in declarations.items():
-            if typename == None:
+            if typename is None:
                 typename = f"ST{index}"
                 index += 1
-            mut = is_mutable(node.scopes, get_id(declaration))
-            mut = "var" if mut else "val"
+            this_is_mutable = is_mutable(node.scopes, get_id(declaration))
+            mut = "var" if this_is_mutable else "val"
             fields.append(f"{mut} {declaration}: {typename}")
 
         for b in node.body:
@@ -328,7 +324,8 @@ class KotlinTranspiler(CLikeTranspiler):
             body = "\n".join(body)
             return f"class {node.name} {{\n{fields}\n\n {body}\n}}\n"
 
-    def _visit_enum(self, node, typename: str, fields: List[Tuple]) -> str:
+    @staticmethod
+    def _visit_enum(node, typename: str, fields: List[Tuple]) -> str:
         fields_list = []
 
         for field, value in fields:
@@ -494,7 +491,8 @@ class KotlinTranspiler(CLikeTranspiler):
             return f"throw Exception({exc})"
         return "throw Exception()"
 
-    def visit_Print(self, node) -> str:
+    @staticmethod
+    def visit_Print(node) -> str:
         vargs_str = " ".join([f"${arg}" for arg in node.values])
         return f'println("{vargs_str}")'
 

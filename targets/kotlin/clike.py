@@ -150,9 +150,9 @@ class CLikeTranspiler(CommonCLikeTranspiler):
         left_rank = KT_WIDTH_RANK.get(left_type, -1)
         right_rank = KT_WIDTH_RANK.get(right_type, -1)
 
-        if left_rank > right_rank and right_rank != -1:
+        if left_rank > right_rank != -1:
             right = f"{right}.to{left_type}()"
-        elif right_rank > left_rank and left_rank != -1:
+        elif right_rank > left_rank != -1:
             left = f"{left}.to{right_type}()"
 
         return f"{left} {op} {right}"

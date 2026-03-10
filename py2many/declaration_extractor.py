@@ -91,7 +91,10 @@ class DeclarationExtractor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node, dataclass=False):
-        """Visits annotated assignments to extract type information and default values for class members."""
+        """
+        Visits annotated assignments to extract type information
+        and default values for class members.
+        """
         target = node.target
         target_id = get_id(target)
         if target_id is None:

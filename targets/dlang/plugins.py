@@ -3,9 +3,9 @@ import sys
 from typing import Callable, Dict, List, Tuple, Union
 
 
-class DartTranspilerPlugins:
-    @staticmethod
-    def visit_range(node, vargs: List[str]) -> str:
+class DTranspilerPlugins:
+    def visit_range(self, node, vargs: List[str]) -> str:
+        self._usings.add("std.range : iota")
         start = 0
         step = 1
         if len(vargs) == 1:
@@ -24,25 +24,24 @@ class DartTranspilerPlugins:
                 )
             )
 
-        return f"([for(var i = {start}; i < {end}; i += {step}) i])"
+        return f"iota({start}, {end}, {step})"
 
     def visit_print(self, node, vargs: List[str]) -> str:
         placeholders = []
         for n in node.args:
             placeholders.append("%s")
-        self._usings.add("package:sprintf/sprintf.dart")
+        self._usings.add("std")
         placeholders_str = " ".join(placeholders)
         vargs_str = ", ".join(vargs)
-        return rf'print(sprintf("{placeholders_str}", [{vargs_str}]))'
+        return rf'writeln(format("{placeholders_str}", {vargs_str}))'
 
     def visit_min_max(self, node, vargs, is_max: bool) -> str:
         min_max = "max" if is_max else "min"
-        self._usings.add("dart:math")
         vargs_str = ", ".join(vargs)
         return f"{min_max}({vargs_str})"
 
     def visit_exit(self, node, vargs) -> str:
-        self._usings.add("dart:io")
+        self._usings.add("core.stdc.stdlib:exit")
         return f"exit({vargs[0]})"
 
 
@@ -50,20 +49,20 @@ class DartTranspilerPlugins:
 SMALL_DISPATCH_MAP = {
     "str": lambda n, vargs: f"{vargs[0]}.toString()" if vargs else '""',
     "len": lambda n, vargs: f"{vargs[0]}.length",
-    "int": lambda n, vargs: f"{vargs[0]}.toInt()" if vargs else "0",
+    "int": lambda n, vargs: f"{vargs[0]}.to!int" if vargs else "0",
     "bool": lambda n, vargs: f"({vargs[0]} != 0)" if vargs else "false",
-    "floor": lambda n, vargs: f"{vargs[0]}.floor()",
-    "float": lambda n, vargs: f"{vargs[0]}.toDouble()" if vargs else "0",
+    "floor": lambda n, vargs: f"{vargs[0]}.floor().to!long",  # long: int64
+    "float": lambda n, vargs: f"{vargs[0]}.to!double" if vargs else "0",
 }
 
 SMALL_USINGS_MAP: Dict[str, str] = {}
 
 DISPATCH_MAP = {
-    "max": functools.partial(DartTranspilerPlugins.visit_min_max, is_max=True),
-    "min": functools.partial(DartTranspilerPlugins.visit_min_max, is_max=False),
-    "range": DartTranspilerPlugins.visit_range,
-    "xrange": DartTranspilerPlugins.visit_range,
-    "print": DartTranspilerPlugins.visit_print,
+    "max": functools.partial(DTranspilerPlugins.visit_min_max, is_max=True),
+    "min": functools.partial(DTranspilerPlugins.visit_min_max, is_max=False),
+    "range": DTranspilerPlugins.visit_range,
+    "xrange": DTranspilerPlugins.visit_range,
+    "print": DTranspilerPlugins.visit_print,
 }
 
 MODULE_DISPATCH_TABLE: Dict[str, str] = {}
@@ -79,5 +78,5 @@ ATTR_DISPATCH_TABLE = {
 FuncType = Union[Callable, str]
 
 FUNC_DISPATCH_TABLE: Dict[FuncType, Tuple[Callable, bool]] = {
-    sys.exit: (DartTranspilerPlugins.visit_exit, True),
+    sys.exit: (DTranspilerPlugins.visit_exit, True),
 }

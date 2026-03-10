@@ -146,7 +146,8 @@ class CLikeTranspiler(CommonCLikeTranspiler):
         self._type_map = PYCPP_TYPE_MAP
         self._container_type_map = self.CONTAINER_TYPE_MAP
 
-    def _check_keyword(self, name):
+    @staticmethod
+    def _check_keyword(name):
         if name in cpp_keywords:
             return name + "_", True
         return name, False

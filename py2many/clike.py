@@ -307,7 +307,7 @@ class CLikeTranspiler(ast.NodeVisitor):
 
         Raises:
             AstNotImplementedError: If the slice is an advanced slice (start:stop:step)
-                                    or an extended multi-dimensional slice.
+                                    or an extended multidimensional slice.
         """
         slice_node = node.slice
 
@@ -577,7 +577,10 @@ class CLikeTranspiler(ast.NodeVisitor):
         except AstNotImplementedError:
             raise
         except Exception as exc:
-            raise AstNotImplementedError(str(exc), node) from exc
+            raise AstNotImplementedError(
+                msg=str(exc),
+                node=node
+            ) from exc
 
 
     def visit_Pass(self, node) -> str:
@@ -734,7 +737,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         else:
             imported_name = "."
 
-        names = [self.visit(n) for n in node.names] # names would be list[] of .. or set but most likely list of tuples (name, asname)
+        names = [self.visit(n) for n in node.names] # names would be list[] of ... or set but most likely list of tuples (name, asname)
         for name, asname in names:
             asname = asname if asname is not None else name
             if imported_module:
@@ -759,57 +762,123 @@ class CLikeTranspiler(ast.NodeVisitor):
             return node.id.lower()
         return node.id
 
-
-    # def visit_Ellipsis(self, node) -> str: # TODO: Fix to ast.Constant properly. FIXME
-    #     """
-    #     Visit an ellipsis node ('...').
-    #
-    #     Args:
-    #         node (ast.Ellipsis): The ellipsis AST node.
-    #
-    #     Returns:
-    #         str: A comment indicating unsupported ellipsis in the target language.
-    #     """
-    #     return self.comment("...")
-
-
-    def visit_NameConstant(self, node):
-        """
-        Visit a constant node representing True, False, or None.
-
-        Args:
-            node (ast.NameConstant): The AST node representing a constant.
-
-        Returns:
-            str: The equivalent constant in the target language.
-        """
-        if node.value is True:
-            return "true"
-        elif node.value is False:
-            return "false"
-        elif node.value is None:
-            return "NULL"
-        elif node.value is Ellipsis:
-            return self.comment("...")  #  ast.Ellipsis is gone:
-            # return self.visit_Ellipsis(node) # WARNING: Expected type 'Ellipsis', got 'NameConstant' instead
-        else:
-            return str(node.value)
-
     def visit_Constant(self, node: ast.Constant) -> str:
-        """
-        Visit a constant node (string, number, boolean).
+        value = node.value
+
+        match value:
+
+            case bool():
+                return self.render_bool(value)
+
+            case None:
+                return self.render_none()
+
+            case int():
+                return self.render_int(value)
+
+            case float():
+                return self.render_float(value)
+
+            case complex():
+                return self.render_complex(value)
+
+            case str():
+                return self.render_string(value)
+
+            case bytes():
+                return self.render_bytes(value)
+
+            case type(Ellipsis):
+                return self.render_ellipsis()
+
+            case _:
+                raise AstNotImplementedError(
+                    msg=f"Unsupported constant type: {type(value).__name__}",
+                    node=node
+                ) # msg, node <-- correct parameters
+
+
+    # MARK: - Render hooks - to be overridden in target
+
+    @staticmethod
+    def render_bool(value: bool) -> str:
+        return "true" if value else "false"
+
+
+    @staticmethod
+    def render_none() -> str:
+        return "nullptr"
+
+
+    @staticmethod
+    def render_int(value: int) -> str:
+        if value > 2147483647:
+            return f"{value}LL"
+        return str(value)
+
+
+    @staticmethod
+    def render_float(value: float) -> str:
+        s = str(value)
+        return s if "." in s or "e" in s.lower() else f"{s}.0"
+
+
+    @staticmethod
+    def render_complex(value: complex) -> str:
+        return f"std::complex<double>({value.real}, {value.imag})"
+
+
+    def render_string(self, value: str) -> str:
+        return self._escape_string(value)
+
+
+    def render_bytes(self, value: bytes) -> str:
+        return self._escape_bytes(value)
+
+
+    def render_ellipsis(self) -> str:
+        return self.comment("...")
+
+
+
+    @staticmethod
+    def _escape_bytes(node) -> str:
+        """Renders bytes as a C-style escaped hex string.
 
         Args:
-            node (ast.Constant): The AST constant node.
+            node (ast.Node): ast node for raw byte sequence.
 
         Returns:
-            str: The string representation in the target language.
+            str: A C-style string literal (e.g., '"\\x41\\x42"').
         """
-        if isinstance(node.value, str):
-            return self.visit_Str(node)  # WARNING: Expected type 'Str', got 'Constant' instead
-        elif isinstance(node.value, bytes):
-            return self.visit_Bytes(node)  # WARNING: Expected type 'Bytes', got 'Constant' instead
-        return str(self.visit_NameConstant(node)) # WARNING: Expected type 'NameConstant', got 'Constant' instead
+        # Uses a generator to hex-escape every single byte
+
+        bytes_str = node.value
+
+        body = "".join(f"\\x{b:02x}" for b in bytes_str)
+        return f'"{body}"'
+
+
+
+    @staticmethod
+    def _escape_string(node) -> str:
+        """
+        Visit a string literal node.
+
+        Args:
+            node (ast.Str): The AST string node.
+
+        Returns:
+            str: Properly escaped string for the target language.
+        """
+        node_str = node.value
+        node_str = node_str.replace('"', '\\"')
+        node_str = node_str.replace("\n", "\\n")
+        node_str = node_str.replace("\r", "\\r")
+        node_str = node_str.replace("\t", "\\t")
+        return f'"{node_str}"'
+
+
 
     def visit_Expr(self, node: ast.Expr) -> str:
         """
@@ -831,37 +900,8 @@ class CLikeTranspiler(ast.NodeVisitor):
             s += self._statement_separator
         return "" if s == self._statement_separator else s
 
-    def visit_Str(self, node) -> str:
-        """
-        Visit a string literal node.
 
-        Args:
-            node (ast.Str): The AST string node.
 
-        Returns:
-            str: Properly escaped string for the target language.
-        """
-        node_str = node.value
-        node_str = node_str.replace('"', '\\"')
-        node_str = node_str.replace("\n", "\\n")
-        node_str = node_str.replace("\r", "\\r")
-        node_str = node_str.replace("\t", "\\t")
-        return f'"{node_str}"'
-
-    def visit_Bytes(self, node) -> str:
-        """
-        Visit a bytes literal node.
-
-        Args:
-            node (ast.Bytes): The AST bytes node.
-
-        Returns:
-            str: A string representation of bytes for the target language.
-        """
-        #bytes_str = node.s
-        bytes_str = node.value
-        byte_array = ", ".join([hex(c) for c in bytes_str])
-        return f"{{{byte_array}}}"
 
     def visit_arguments(self, node) -> Tuple[List[str], List[str]]:
         """

@@ -5,7 +5,8 @@ from typing import Callable, Dict, List, Tuple, Union
 
 
 class KotlinTranspilerPlugins:
-    def visit_range(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_range(node, vargs: List[str]) -> str:
         if len(node.args) == 1:
             return f"(0..{vargs[0]}-1)"
         elif len(node.args) == 2:
@@ -17,7 +18,8 @@ class KotlinTranspilerPlugins:
             f"encountered range() call with unknown parameters: range({vargs})"
         )
 
-    def visit_print(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_print(node, vargs: List[str]) -> str:
         def _format(arg):
             if arg.isdigit():
                 return arg

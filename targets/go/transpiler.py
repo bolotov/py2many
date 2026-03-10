@@ -3,8 +3,9 @@ import textwrap
 from typing import List
 
 from py2many.analysis import (
-    IGNORED_MODULE_SET, get_id, is_global, is_void_function,
+    IGNORED_MODULE_SET, is_global, is_void_function,
 )
+from py2many.ast_helpers import get_id
 from py2many.clike import _AUTO_INVOKED, class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
 from py2many.exceptions import (

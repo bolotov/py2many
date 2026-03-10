@@ -6,7 +6,8 @@ from typing import Callable, Dict, List, Tuple, Union
 
 
 class NimTranspilerPlugins:
-    def visit_range(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_range(node, vargs: List[str]) -> str:
         if len(node.args) == 1:
             return f"(0..{vargs[0]} - 1)"
         elif len(node.args) == 2:
@@ -25,7 +26,8 @@ class NimTranspilerPlugins:
                 return "0.0"
         return f"{cast_to}({vargs[0]})"
 
-    def visit_print(self, node, vargs: List[str]) -> str:
+    @staticmethod
+    def visit_print(node, vargs: List[str]) -> str:
         args = []
         for n in vargs:
             args.append(n)

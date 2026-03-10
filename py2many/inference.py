@@ -13,8 +13,7 @@ from ctypes import (
 from dataclasses import dataclass
 from typing import Optional, Set, cast
 
-from py2many.analysis import get_id
-from py2many.ast_helpers import create_ast_node
+from py2many.ast_helpers import create_ast_node, get_id
 from py2many.astx import LifeTime
 from py2many.clike import CLikeTranspiler, class_for_typename
 from py2many.exceptions import AstIncompatibleAssign, AstUnrecognisedBinOp

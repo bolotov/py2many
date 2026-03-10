@@ -1,6 +1,6 @@
 import ast
 
-from py2many.analysis import get_id
+from py2many.ast_helpers import get_id
 from py2many.inference import get_inferred_type
 
 

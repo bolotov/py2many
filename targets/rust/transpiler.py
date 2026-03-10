@@ -5,11 +5,11 @@ from typing import List, Tuple, Union
 
 from py2many.analysis import (
     FunctionTransformer,
-    get_id,
     is_global,
     is_mutable,
     is_void_function,
 )
+from py2many.ast_helpers import get_id
 from py2many.clike import class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
 from py2many.exceptions import AstClassUsedBeforeDeclaration
@@ -920,16 +920,16 @@ class RustTranspiler(CLikeTranspiler):
         elt = self.visit(node.elt)
         generator = node.generators[0]
         target = self.visit(generator.target)
-        iter = self.visit(generator.iter)
+        this_iter = self.visit(generator.iter)
 
         is_range = (
             ("range" in get_id(generator.iter.func))
-            if isinstance(generator.iter, ast.Call) and get_id(generator.iter.func)
+            if isinstance(generator.this_iter, ast.Call) and get_id(generator.iter.func)
             else False
         )
         # HACK for dictionary iterators to work
-        if not (iter.endswith("keys()") or iter.endswith("values()")) and not is_range:
-            iter += ".iter()"
+        if not (this_iter.endswith("keys()") or this_iter.endswith("values()")) and not is_range:
+            this_iter += ".iter()"
 
         map_str = f".map(|{target}| {elt})"
         filter_str = ""

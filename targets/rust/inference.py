@@ -14,7 +14,8 @@ from ctypes import (
     c_uint64,
 )
 
-from py2many.analysis import get_id, is_mutable
+from py2many.analysis import is_mutable
+from py2many.ast_helpers import get_id
 from py2many.clike import class_for_typename
 from py2many.inference import InferTypesTransformer, LanguageInferenceBase, is_reference
 

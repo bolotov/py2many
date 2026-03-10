@@ -2,7 +2,8 @@ import ast
 import textwrap
 from typing import List
 
-from py2many.analysis import get_id, is_global, is_mutable, is_void_function
+from py2many.analysis import is_global, is_mutable, is_void_function
+from py2many.ast_helpers import get_id
 from py2many.clike import class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
 from py2many.inference import get_inferred_type
@@ -261,8 +262,7 @@ class DTranspiler(CLikeTranspiler):
             return super().visit_NameConstant(node)
 
     def _make_block(self, node):
-        buf = []
-        buf.append("{")
+        buf = ["{"]
         buf.extend([self.visit(child) for child in node.body])
         buf.append("}")
         return "\n".join(buf)

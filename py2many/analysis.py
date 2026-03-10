@@ -1,11 +1,6 @@
 import ast
 from typing import Any, Iterable
 
-from .ast_helpers import get_id
-
-# Intentionally kept to avoid breaking external imports that rely on this symbol.
-_ = get_id
-
 
 IGNORED_MODULE_SET = {
     "typing",

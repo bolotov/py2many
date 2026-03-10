@@ -5,7 +5,7 @@ import ast
 from collections.abc import Iterable
 from typing import Optional
 
-from py2many.analysis import get_id
+from py2many.ast_helpers import get_id
 from py2many.clike import CLikeTranspiler
 from py2many.exceptions import AstNotImplementedError
 
@@ -122,7 +122,7 @@ def value_expr(node):
 
 def value_type(node):
     """
-    Guess the value type of a node based on the manipulations or assignments
+    Guess the value type of node based on the manipulations or assignments
     in the current scope.
     Special case: If node is a container like a list the value type inside the
     list is returned not the list type itself.

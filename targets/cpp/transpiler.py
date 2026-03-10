@@ -2,8 +2,8 @@ import ast
 import textwrap
 from typing import List, Tuple
 
-from py2many.analysis import add_imports, get_id, is_global, is_void_function
-from py2many.ast_helpers import create_ast_block
+from py2many.analysis import add_imports, is_global, is_void_function
+from py2many.ast_helpers import create_ast_block, get_id
 from py2many.clike import _AUTO_INVOKED, class_for_typename
 from py2many.context import add_list_calls, add_variable_context
 from py2many.declaration_extractor import DeclarationExtractor

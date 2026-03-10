@@ -35,7 +35,8 @@ class DTranspilerPlugins:
         vargs_str = ", ".join(vargs)
         return rf'writeln(format("{placeholders_str}", {vargs_str}))'
 
-    def visit_min_max(self, node, vargs, is_max: bool) -> str:
+    @staticmethod
+    def visit_min_max(node, vargs, is_max: bool) -> str:
         min_max = "max" if is_max else "min"
         vargs_str = ", ".join(vargs)
         return f"{min_max}({vargs_str})"
@@ -45,7 +46,7 @@ class DTranspilerPlugins:
         return f"exit({vargs[0]})"
 
 
-# small one liners are inlined here as lambdas
+# small one-liners are inlined here as lambdas
 SMALL_DISPATCH_MAP = {
     "str": lambda n, vargs: f"{vargs[0]}.toString()" if vargs else '""',
     "len": lambda n, vargs: f"{vargs[0]}.length",
@@ -58,8 +59,8 @@ SMALL_DISPATCH_MAP = {
 SMALL_USINGS_MAP: Dict[str, str] = {}
 
 DISPATCH_MAP = {
-    "max": functools.partial(DTranspilerPlugins.visit_min_max, is_max=True),
-    "min": functools.partial(DTranspilerPlugins.visit_min_max, is_max=False),
+    "max": functools.partial(is_max=True),
+    "min": functools.partial(is_max=False),
     "range": DTranspilerPlugins.visit_range,
     "xrange": DTranspilerPlugins.visit_range,
     "print": DTranspilerPlugins.visit_print,

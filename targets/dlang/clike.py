@@ -86,7 +86,8 @@ class CLikeTranspiler(CommonCLikeTranspiler):
             return node.id + "_"
         return super().visit_Name(node)
 
-    def is_complex(self, node):
+    @staticmethod
+    def is_complex(node):
         return isinstance(node, ast.Constant) and isinstance(node.value, complex)
 
     def visit_BinOp(self, node) -> str:

@@ -1,7 +1,6 @@
 import ast
 
-from py2many.analysis import get_id
-from py2many.ast_helpers import create_ast_block
+from py2many.ast_helpers import create_ast_block, get_id
 from py2many.inference import get_inferred_type
 
 
@@ -60,12 +59,12 @@ class InferredAnnAssignRewriter(ast.NodeTransformer):
                         assigns.append(new_node)
                         continue
             new_node = ast.AnnAssign(
-                target=assign_target, # This field exists
-                value=node.value, # This field exists
-                lineno=node.lineno,  # AnnAssign has no 'lineno' <- it must be passed differntly
-                col_offset=col_offset, # AnnAssign has no 'col_offset' <- it must be passed differntly
-                simple=True, # This field exists
-                annotation=annotation, # This field exists
+                target=assign_target, # This field exists!
+                value=node.value, # This field exists!
+                lineno=node.lineno,  # AnnAssign has no 'lineno' <- it must be passed differently OR must be created
+                col_offset=col_offset, # AnnAssign has no 'col_offset' <- it must be passed differently OR must be created
+                simple=True, # This field exists!
+                annotation=annotation, # This field exists!
             )
             assigns.append(new_node)
 

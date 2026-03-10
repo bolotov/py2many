@@ -1,7 +1,7 @@
 import ast
 from typing import Optional
 
-from .analysis import get_id
+from py2many.ast_helpers import get_id
 
 
 def detect_raises(node: ast.AST) -> ast.AST:

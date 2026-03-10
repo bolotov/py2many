@@ -2,8 +2,7 @@ import ast
 import textwrap
 from typing import cast
 
-from py2many.analysis import get_id
-from py2many.ast_helpers import create_ast_node
+from py2many.ast_helpers import create_ast_node, get_id
 
 
 class PrintBoolRewriter(ast.NodeTransformer):

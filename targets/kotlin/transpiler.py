@@ -1,8 +1,8 @@
 import ast
 from typing import List, Tuple
 
-from py2many.analysis import get_id, is_mutable, is_void_function
-from py2many.ast_helpers import create_ast_block
+from py2many.analysis import is_mutable, is_void_function
+from py2many.ast_helpers import create_ast_block, get_id
 from py2many.clike import class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
 from py2many.tracer import defined_before, is_class_or_module, is_list, is_self_arg
@@ -242,11 +242,11 @@ class KotlinTranspiler(CLikeTranspiler):
         else:
             return super().visit_Name(node)
 
-    def visit_NameConstant(self, node) -> str:
-        if node.value is None:
-            return "null"
-        else:
-            return super().visit_NameConstant(node)
+    # def visit_NameConstant(self, node) -> str:
+    #     if node.value is None:
+    #         return "null"
+    #     else:
+    #         return super().visit_NameConstant(node)
 
     def _make_block(self, node):
         buf = ["if (true) {"]

@@ -10,7 +10,7 @@ from ctypes import (
     c_uint64,
 )
 
-from py2many.analysis import get_id
+from py2many.ast_helpers import get_id
 from py2many.inference import InferTypesTransformer, LanguageInferenceBase
 
 KT_TYPE_MAP = {

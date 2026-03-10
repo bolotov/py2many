@@ -1,8 +1,7 @@
 import ast
 from contextlib import contextmanager
 
-from py2many.analysis import get_id
-
+from py2many.ast_helpers import get_id
 
 # All AST node types that introduce lexical scopes.
 # FIX: Explicit central definition ensures consistent scope detection
@@ -124,11 +123,20 @@ class ScopeTransformer(ast.NodeTransformer, ScopeMixin):
         ScopeMixin.__init__(self)
 
     def visit(self, node):
-
-        # FIX:
-        # The scope list attached to nodes must be a *snapshot*
-        # of the current scope stack. Using ScopeList(self.scopes)
-        # directly would expose the mutable internal stack.
+        """Override visit to ensure every node gets a scope attribute, even if it's None."""
         with self.enter_scope(node):
+
             node.scopes = ScopeList(list(self.scopes))
+
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+
+                if not hasattr(node, "vars"):
+                    node.vars = set()
+
+                if not hasattr(node, "body_vars"):
+                    node.body_vars = set()
+
+                if not hasattr(node, "orelse_vars"):
+                    node.orelse_vars = set()
+
             return super().visit(node)

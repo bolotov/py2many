@@ -10,14 +10,14 @@ import time
 from tempfile import NamedTemporaryFile
 from typing import Callable, Dict, List, Tuple, Union
 
+from py2many.ast_helpers import get_id
+
 try:
     from argparse_dataclass import ArgumentParser
     from argparse_dataclass import dataclass as ap_dataclass
 except:
     ArgumentParser = "ArgumentParser"
     ap_dataclass = "ap_dataclass"
-
-from py2many.analysis import get_id
 
 
 class RustTranspilerPlugins:

@@ -1,7 +1,6 @@
 import ast
 
-from py2many.analysis import get_id
-from py2many.ast_helpers import create_ast_block
+from py2many.ast_helpers import create_ast_block, get_id
 
 
 class IgnoredAssignRewriter(ast.NodeTransformer):

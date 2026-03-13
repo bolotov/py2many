@@ -49,7 +49,8 @@ class LoopElseRewriter(ast.NodeTransformer):
         self._counter += 1
         return name
 
-    def _make_flag_assign(self, name: str, value: bool) -> ast.Assign:
+    @staticmethod
+    def _make_flag_assign(name: str, value: bool) -> ast.Assign:
         node = ast.Assign(
             targets=[ast.Name(id=name, ctx=ast.Store())],
             value=ast.Constant(value=value),

@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple, Union
 
 class ZigTranspilerPlugins:
     @staticmethod
-    def visit_cast(node, vargs, cast_to: str) -> str:
+    def visit_cast(_node, vargs, cast_to: str) -> str:
         if not vargs:
             if cast_to == "Float64":
                 return "0.0"

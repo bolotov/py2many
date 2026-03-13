@@ -5,9 +5,6 @@ Defines the `settings()` function that returns a configured LanguageSettings
 object used for transpiling Python code to Nim.
 """
 
-
-import os
-
 from py2many.language import LanguageSettings
 from .transpiler import DartIntegerDivRewriter, DartTranspiler
 
@@ -21,12 +18,12 @@ from .transpiler import DartIntegerDivRewriter, DartTranspiler
 # - DocStringToCommentRewriter (because of docstrings in dart)
 # - RemovePassRewriter (because of pass statements in dart)
 
-def settings(args, env=os.environ):
+def settings():
     return LanguageSettings(
         transpiler=DartTranspiler(),
         ext=".dart",
         display_name="Dart",
-        formatter=["dart", "format"],
-        post_rewriters=[DartIntegerDivRewriter()],
+        formatter=("dart", "format",),
+        post_rewriters=(DartIntegerDivRewriter(),),
     )
 

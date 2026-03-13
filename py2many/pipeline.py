@@ -13,18 +13,12 @@ Key improvements implemented here:
    - Detects invalid transformer return values.
    - Supports both in-place and functional transformers.
 
-2. Optional AST validation hook
+2. Optional AST validation hook - 
    - Disabled by default to avoid breaking existing transformers.
    - Can be enabled during debugging.
 
 3. Structural AST hashing for debugging transforms
    - Helps detect unexpected tree mutations.
-
-4. Deduplicated processing logic
-   - `_process_one` and `_process_many` now share internal helpers.
-
-5. Consistent logging integration
-   - Uses the existing project logger.
 
 The execution order and semantics of rewriters, transformers, and
 code generation are intentionally preserved.
@@ -36,6 +30,7 @@ import hashlib
 import os
 import sys
 import tempfile
+import traceback
 from functools import lru_cache
 from pathlib import Path
 from subprocess import run
@@ -55,24 +50,25 @@ from py2many.rewriters import (
 )
 
 from py2many.utilities.toposort_modules import toposort
-from py2many.utilities.logger import setup_logger, LogLevel, NOOP
+from py2many.utilities.logger import setup_logger
 
 from .analysis import add_imports
-from .annotation_transformer import add_annotation_flags
+from py2many.transformers.annotation_transformer import add_annotation_flags
 from .context import add_assignment_context, add_list_calls, add_variable_context
 from .exceptions import AstErrorBase
 from .inference import infer_types, infer_types_typpete
 from .language import LanguageSettings
-from .mutability_transformer import detect_mutable_vars
-from .nesting_transformer import detect_nesting_levels
-from .raises_transformer import detect_raises
-from .registry import ALL_SETTINGS, get_all_settings
+from py2many.transformers.mutability_transformer import detect_mutable_vars
+from py2many.transformers.nesting_transformer import detect_nesting_levels
+from py2many.transformers.raises_transformer import detect_raises
+from .registry import get_all_settings
 from .scope import add_scope_context
-from .version import __version__
+from .__init__ import __version__
 
 
 _log = setup_logger()
 
+FileSet = Set[Path] # A set of file paths, used to track successful and failed transpilation targets.
 
 PY2MANY_DIR = Path(__file__).parent
 ROOT_DIR = PY2MANY_DIR.parent
@@ -99,7 +95,7 @@ LANGS = get_all_settings(FAKE_ARGS)
 
 
 # ------------------------------------------------------------------------------
-# AST validation (optional)
+# MARK: AST validation (optional)
 # ------------------------------------------------------------------------------
 
 ENABLE_AST_VALIDATION = False
@@ -132,9 +128,8 @@ def validate(tree: ast.AST) -> None:
 
 
 # ------------------------------------------------------------------------------
-# AST debug helpers
+# MARK: AST debug helpers
 # ------------------------------------------------------------------------------
-
 
 def _ast_hash(tree: ast.AST) -> str:
     """
@@ -157,7 +152,6 @@ def _run_transform(tx: Callable[[ast.AST], Any], tree: ast.AST) -> ast.AST:
     """
     name = getattr(tx, "__name__", type(tx).__name__)
     before = _ast_hash(tree)
-
     result = tx(tree)
 
     if result is None:
@@ -181,7 +175,7 @@ def _run_transform(tx: Callable[[ast.AST], Any], tree: ast.AST) -> ast.AST:
 
 
 # ------------------------------------------------------------------------------
-# Core semantic analysis stage
+# MARK: Core semantic analysis stage
 # ------------------------------------------------------------------------------
 
 
@@ -215,7 +209,7 @@ def core_transformers(
 
 
 # ------------------------------------------------------------------------------
-# Transpilation
+# MARK: Transpilation
 # ------------------------------------------------------------------------------
 
 
@@ -232,7 +226,7 @@ def _transpile(
 
     transpiler = settings.transpiler
 
-    rewriters: List[Any] = list(settings.rewriters)
+    rewriters: Tuple[Any] = tuple(settings.rewriters)
     transformers: List[Callable[[ast.AST], None]] = list(settings.transformers)
     post_rewriters: List[Any] = list(settings.post_rewriters)
 
@@ -251,14 +245,14 @@ def _transpile(
 
     language = transpiler.NAME
 
-    generic_rewriters = [
+    generic_rewriters = (
         ComplexDestructuringRewriter(language),
         PythonMainRewriter(settings.transpiler.main_signature_arg_names),
         FStringJoinRewriter(language),
         DocStringToCommentRewriter(),
         WithToBlockTransformer(language),
         IgnoredAssignRewriter(language),
-    ]
+    )
 
     generic_post_rewriters = [
         PrintBoolRewriter(language),
@@ -269,14 +263,13 @@ def _transpile(
     if settings.ext != ".py":
         generic_post_rewriters.append(LoopElseRewriter(language))
 
-    rewriters = generic_rewriters + rewriters
+    rewriters: Tuple[ast.NodeTransformer, ...] = tuple(generic_rewriters) + rewriters
     post_rewriters = generic_post_rewriters + post_rewriters
 
     outputs: Dict[Path, str] = {}
     successful: List[Path] = []
 
     for filename, tree in zip(topo_filenames, trees):
-
         try:
             output = _transpile_one(
                 trees,
@@ -292,9 +285,6 @@ def _transpile(
             successful.append(filename)
 
         except Exception as e:
-
-            import traceback
-
             formatted = traceback.format_exc().splitlines()
 
             if isinstance(e, AstErrorBase):
@@ -370,7 +360,7 @@ def _transpile_one(
 
 
 # ------------------------------------------------------------------------------
-# Shared helpers for file processing
+# MARK: Shared helpers for file processing
 # ------------------------------------------------------------------------------
 
 
@@ -400,9 +390,7 @@ def _create_cmd(
         filename: Path | str,
         **kw: Any,
 ) -> List[str]:
-    """
-    Construct formatter command.
-    """
+    """Construct formatter command."""
     cmd = [arg.format(filename=filename, **kw) for arg in certain_parts]
 
     if list(certain_parts) != cmd:
@@ -416,49 +404,35 @@ def _format_one(
         output_path: Path,
         env: Optional[Mapping[str, str]] = None,
 ) -> bool:
-    """
-    Run external formatter for generated code.
-    """
-
+    """Run external formatter for generated code."""
     try:
-
         cmd = _create_cmd(settings.formatter, filename=output_path)
-
         proc = run(cmd, env=env, capture_output=True)
 
         if proc.returncode:
-
             print(
                 f"Error: {cmd} (code: {proc.returncode}):\n{proc.stderr}{proc.stdout}"
             )
-
             return False
 
     except Exception as e:
-
         if settings.ignore_formatter_errors:
             return True
 
         print(f"Error: Could not format: {output_path}")
         print(f"Due to: {e.__class__.__name__} {e}")
-
         return False
-
     return True
 
 
 # ------------------------------------------------------------------------------
-# High-level API
+# MARK: High-level API
 # ------------------------------------------------------------------------------
-
 
 def transpile_from_args(
         args: argparse.Namespace,
-        env: Optional[Mapping[str, str]] = None,
 ) -> int:
-    """
-    Entry point used by CLI.
-    """
+    """Entry point used by CLI."""
 
     if getattr(args, "version", False):
         print(__version__)
@@ -466,15 +440,13 @@ def transpile_from_args(
 
     language = args.lang
 
-    if language not in ALL_SETTINGS:
+    if language not in get_all_settings():
         raise ValueError(f"Unsupported language: {language}")
 
-    settings_func = ALL_SETTINGS[language]
+    # settings_func = get_all_settings()[language]
+    # settings = settings_func(args)
 
-    if env is None:
-        env = {}
-
-    settings = settings_func(args, env=env)
+    settings = get_all_settings()[language](args)
 
     if getattr(args, "comment_unsupported", False) or not getattr(args, "strict", True):
         settings.transpiler.set_continue_on_unimplemented()
@@ -486,20 +458,15 @@ def transpile_from_args(
     rest = getattr(args, "_rest", [])
 
     for filename in rest:
-
         source = Path(filename)
-
         out_dir = source.parent if args.out_dir is None else Path(args.out_dir)
 
         if source.is_file() or source.name == STDIN:
-
             print(f"Writing to: {out_dir}", file=sys.stderr)
 
             try:
-                rv = _process_one(settings, source, out_dir, args, env)
+                rv = _process_one(settings, source, out_dir, args) #, env)
             except Exception as e:
-
-                import traceback
 
                 formatted_lines = traceback.format_exc().splitlines()
 
@@ -510,17 +477,15 @@ def transpile_from_args(
                     )
                 else:
                     print(f"{source}: {formatted_lines[-1]}", file=sys.stderr)
-
                 rv = False
 
         else:
-
             successful, format_errors, failures = _process_dir(
                 settings,
                 source,
                 out_dir,
                 getattr(args, "project", True),
-                env=env,
+                # env=env,
             )
 
             rv = not (failures or format_errors)
@@ -570,7 +535,7 @@ def _process_one(
         filename: Path,
         out_dir: Path,
         args: argparse.Namespace,
-        environment: Optional[Mapping[str, str]],
+        # environment: Optional[Mapping[str, str]],
 ) -> bool | Tuple[Set[Path], Set[Path]]:
     """
     Transpile and optionally format a single file.
@@ -580,7 +545,6 @@ def _process_one(
         False on failure
         tuple when stdin mode is used
     """
-
     suffix = f".{args.suffix}" if args.suffix is not None else settings.ext
 
     output_path = _get_output_path(
@@ -590,30 +554,25 @@ def _process_one(
     )
 
     if filename.name == STDIN:
-
         output = _process_one_data(sys.stdin.read(), Path("test.py"), settings)
-
         tmp_name: Optional[str] = None
 
         try:
-
             with tempfile.NamedTemporaryFile(
                     suffix=settings.ext,
                     delete=False,
             ) as f:
-
                 tmp_name = f.name
                 f.write(output.encode("utf-8"))
 
             tmp_path = Path(tmp_name)
 
-            if _format_one(settings, tmp_path, environment):
+            if _format_one(settings, tmp_path):
                 sys.stdout.write(tmp_path.read_text())
             else:
                 sys.stderr.write("Formatting failed")
 
         finally:
-
             if tmp_name is not None:
                 os.remove(tmp_name)
 
@@ -638,7 +597,7 @@ def _process_one(
         f.write(outputs[0].encode("utf-8"))
 
     if settings.formatter:
-        return _format_one(settings, output_path, environment)
+        return _format_one(settings, output_path)
 
     return True
 
@@ -658,7 +617,6 @@ def _process_one_data(
     return outputs[0]
 
 
-FileSet = Set[Path]
 
 
 def _process_many(
@@ -666,12 +624,9 @@ def _process_many(
         basedir: Path,
         filenames: Sequence[Path],
         out_dir: Path,
-        env: Optional[Mapping[str, str]] = None,
         _suppress_exceptions: type[BaseException] = Exception,
 ) -> Tuple[FileSet, FileSet]:
-    """
-    Transpile and optionally format multiple files.
-    """
+    """Transpile and optionally format multiple files."""
 
     settings.transpiler.set_continue_on_unimplemented()
 
@@ -701,7 +656,6 @@ def _process_many(
             if filename in successful_set and not _format_one(
                     settings,
                     output_path,
-                    env,
             ):
                 format_errors.add(filename)
 
@@ -709,7 +663,7 @@ def _process_many(
 
 
 # ------------------------------------------------------------------------------
-# Directory processing
+# MARK: Directory processing
 # ------------------------------------------------------------------------------
 
 def _process_dir(
@@ -717,20 +671,17 @@ def _process_dir(
         source: Path,
         out_dir: Path,
         project: bool,
-        env: Optional[Mapping[str, str]] = None,
+        # env: Optional[Mapping[str, str]] = None,
         _suppress_exceptions: type[BaseException] = Exception,
 ) -> Tuple[Set[Path], Set[Path], Set[Path]]:
-    """
-    Transpile an entire directory recursively.
-    """
+    """Transpile an entire directory recursively."""
 
     print(f"Transpiling whole directory to {out_dir}:")
 
     if settings.create_project is not None and project:
-
         cmd = settings.create_project + [f"{out_dir}"]
 
-        proc = run(cmd, env=env, capture_output=True)
+        proc = run(cmd, capture_output=True)
 
         if proc.returncode:
             print(f"Error: running {' '.join(cmd)}: {proc.stderr}")
@@ -759,7 +710,7 @@ def _process_dir(
         source,
         input_paths,
         out_dir,
-        env=env,
+        # env=env,
         _suppress_exceptions=_suppress_exceptions,
     )
 

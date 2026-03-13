@@ -6,42 +6,40 @@ object used for transpiling Python code to C++.
 """
 
 import os
-import sys
 import pathlib
-from itertools import chain
-from typing import List
+import sys
+from typing import Tuple
 
 from py2many.language import LanguageSettings
 from py2many.process_helpers import find_executable
 from .transpiler import CppListComparisonRewriter, CppTranspiler
 
 # Constants for Conan include detection
-USER_HOME = os.path.expanduser("~")
-CONAN_ROOTS = [f"{USER_HOME}/.conan/", f"{USER_HOME}/.conan2/"]
-REQUIRED_INCLUDE_FILES = [
+USER_HOME: str = os.path.expanduser("~")
+CONAN_ROOTS = (f"{USER_HOME}/.conan/", f"{USER_HOME}/.conan2/")
+REQUIRED_INCLUDE_FILES = (
     "catch2/catch_test_macros.hpp",
     "cppitertools/range.hpp",
-]
+)
 
 
-def _conan_include_dirs() -> List[str]:
+def _conan_include_dirs() -> Tuple[str, ...]:
     """Search Conan cache for known includes and extract their parent dirs."""
     include_dirs = []
     for hpp_filename in REQUIRED_INCLUDE_FILES:
         for root in CONAN_ROOTS:
             for path in pathlib.Path(root).rglob(hpp_filename):
                 include_dirs.append(str(path.parent.parent))
-    return include_dirs
+    return tuple(include_dirs)
 
 
-def _conan_include_args() -> List[str]:
+def _conan_include_args() -> Tuple[str, ...]:
     """Convert Conan include dirs into -I flags for compiler."""
-    return [
+    return tuple(
         arg
         for directory in _conan_include_dirs()
         for arg in ("-I", directory)
-    ]
-
+    )
 
 
 def settings(args, env=os.environ) -> LanguageSettings:
@@ -55,9 +53,10 @@ def settings(args, env=os.environ) -> LanguageSettings:
     Returns:
         LanguageSettings configured for C++ code generation.
     """
-    # Select compiler
+
+    # MARK: Selecting compiler
     cxx = env.get("CXX")
-    default_cxx = ["clang++", "g++-11", "g++"]
+    default_cxx = ("clang++", "g++-11", "g++")
     if cxx and not find_executable(cxx):
         print(f"Warning: CXX={cxx} not found")
         cxx = None
@@ -69,17 +68,21 @@ def settings(args, env=os.environ) -> LanguageSettings:
         else:
             cxx = default_cxx[0]
 
-    # Construct C++ compiler flags
-    cxx_flags = env.get("CXXFLAGS", "-std=c++17 -Wall -Werror").split()
+    # MARK: Constructing C++ compiler flags
+    cxx_flags: Tuple[str, ...]  = tuple(
+        env.get("CXXFLAGS", "-std=c++17 -Wall -Werror").split()
+    )
     cxx_flags = _conan_include_args() + cxx_flags
     if cxx.startswith("clang++") and sys.platform != "win32":
-        cxx_flags += ["-stdlib=libc++"]
+        cxx_flags += ("-stdlib=libc++",)
 
-    # Construct formatter
+    # MARK: Construct formatter
     clang_style = env.get("CLANG_FORMAT_STYLE")
-    clang_format_cmd = ["clang-format", "-i"]
+
+    clang_format_cmd: Tuple[str, ...] = ("clang-format", "-i")
+
     if clang_style:
-        clang_format_cmd.insert(1, f"-style={clang_style}")
+        clang_format_cmd += (f"-style={clang_style}",)
 
     return LanguageSettings(
         transpiler=CppTranspiler(args.extension, args.no_prologue),
@@ -87,12 +90,12 @@ def settings(args, env=os.environ) -> LanguageSettings:
         display_name="C++",
         lang_id="cpp",  # ensures consistent key in registry
         formatter=clang_format_cmd,
-        rewriters=[
+        rewriters=(
+            #  LoopElseRewriter() used for CPP and all but python for some reason
             #   CLikeRewriter(),  # general structural normalization
             CppListComparisonRewriter(),  # language-specific
-        ],
-        post_rewriters=[],
-        linter=[cxx] + cxx_flags,
+        ),
+        linter=(cxx,) + cxx_flags,
         project_subdir="src",
         indent="    ",  # default to 4 spaces
     )

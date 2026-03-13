@@ -62,9 +62,7 @@ def is_mutable(scopes: Iterable[Any], target: Any) -> bool:
 
 
 def is_ellipsis(node: ast.AST) -> bool:
-    """
-    Return True if node represents an ellipsis literal (`...`).
-    """
+    """Return True if node represents an ellipsis literal (`...`)."""
     return (
             isinstance(node, ast.Expr)
             and isinstance(node.value, ast.Constant)
@@ -73,9 +71,7 @@ def is_ellipsis(node: ast.AST) -> bool:
 
 
 class ReturnFinder(ast.NodeVisitor):
-    """
-    Detect whether a function contains a `return` with a value.
-    """
+    """Detect whether a function contains a `return` with a value."""
 
     def __init__(self) -> None:
         self.returns: bool = False
@@ -95,7 +91,7 @@ class FunctionTransformer(ast.NodeTransformer):
     """
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
-        node.defined_functions = []
+        node.defined_functions = [] # NOTE: MONKEY
         scopes = getattr(node, "scopes", None)
         if scopes and len(scopes) >= 2:
             parent_scope = scopes[-2]
@@ -110,6 +106,7 @@ class FunctionTransformer(ast.NodeTransformer):
         self.generic_visit(node)
         return node
 
+    """
     def visit_Module(self, node: ast.Module) -> ast.AST:
         return self._visit_scoped(node)
 
@@ -140,7 +137,7 @@ class FunctionTransformer(ast.NodeTransformer):
                 defined.append(name)
 
         return node
-
+    """
 
 class CalledWithTransformer(ast.NodeTransformer):
     """
@@ -175,9 +172,7 @@ class CalledWithTransformer(ast.NodeTransformer):
 
 
 class AttributeCallTransformer(ast.NodeTransformer):
-    """
-    Track attribute calls on variables (e.g., x.foo()).
-    """
+    """Track attribute calls on variables (e.g., x.foo())."""
 
     def visit_Assign(self, node: ast.Assign) -> ast.AST:
         for target in node.targets:
@@ -202,9 +197,7 @@ class AttributeCallTransformer(ast.NodeTransformer):
 
 
 class ImportTransformer(ast.NodeTransformer):
-    """
-    Attach imported symbols to scope.imports.
-    """
+    """Attach imported symbols to scope.imports."""
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.AST:
         scopes = getattr(node, "scopes", None)

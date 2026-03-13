@@ -14,10 +14,15 @@ from .transpiler import NimNoneCompareRewriter, NimTranspiler
 
 # Regarding topy2many/rewriters.py in this language
 #
-# Following rewriters are likely skipped for dart:
+# Following rewriters are likely skipped for *Nim*:
 # - StrStrRewriter
 # - IgnoredAssignRewriter
 # 
+
+# In Nim:
+# True and False are written with a lowercase  (true, false),
+# and None is nil.
+
 
 def settings(args, env=os.environ):
     nim_args = {}
@@ -29,8 +34,8 @@ def settings(args, env=os.environ):
         transpiler=NimTranspiler(**nim_args),
         ext=".nim",
         display_name="Nim",
-        formatter=["nimpretty", *nimpretty_args],
-        # None,  # <--- IMPORTANT: IDK, the fuck is that, something is 'None'
-        rewriters=[NimNoneCompareRewriter()],
-        transformers=[infer_nim_types],
+        formatter=("nimpretty", *nimpretty_args,),
+        indent = "  ",
+        rewriters=(NimNoneCompareRewriter(),),
+        transformers=(infer_nim_types,),
     )

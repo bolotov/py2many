@@ -42,7 +42,7 @@ def is_enum(name, scopes) -> bool:
     if entry and hasattr(entry, "bases"):
         bases = {get_id(base) for base in entry.bases}
         enum_bases = {"Enum", "IntEnum", "IntFlag"}
-        return bases & enum_bases
+        return bool(bases & enum_bases)
     return False
 
 
@@ -136,11 +136,10 @@ class ValueExpressionVisitor(ast.NodeVisitor):
         self._stack = []
 
     def visit_Constant(self, node):
-        # return str(node.n)
         return str(node.value)
 
-    def visit_Str(self, node):
-        # return node.s
+    @staticmethod
+    def visit_Str(node):
         return node.value
 
     def visit_Name(self, node):
@@ -199,7 +198,8 @@ class ValueTypeVisitor(ast.NodeVisitor):
     def visit_Constant(self, node):
         return value_expr(node)
 
-    def visit_Str(self, node):
+    @staticmethod
+    def visit_Str(node):
         return value_expr(node)
 
     def visit_Name(self, node):

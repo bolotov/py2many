@@ -9,7 +9,7 @@ from pathlib import Path
 from subprocess import run
 from unittest.mock import Mock
 
-import pytest
+# import pytest
 
 from py2many.pipeline import (
     _create_cmd,

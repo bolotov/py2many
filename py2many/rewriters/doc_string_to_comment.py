@@ -17,7 +17,7 @@ class DocStringToCommentRewriter(ast.NodeTransformer):
      docstring_comment, so backends can choose to handle it
      differently if they want to.
     """
-    def __init__(self): # FIXME: pipeline.py calls this with "language" parqmeter which may be stupid
+    def __init__(self): # FIXME: pipeline.py calls this with "language" parameter which may be stupid
         super().__init__()
         self._docstrings = set()
         self._docstring_parent = {}

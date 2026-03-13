@@ -21,23 +21,28 @@ ROOT_DIR = PY2MANY_DIR.parent
 
 def settings(args, env=os.environ):
     config_filename = "revive.toml"
-    CWD = Path.cwd()
-    if os.path.exists(CWD / config_filename):
-        revive_config = CWD / config_filename
+    cwd = Path.cwd()
+
+    if os.path.exists(cwd / config_filename):
+        revive_config = cwd / config_filename
     elif os.path.exists(ROOT_DIR / config_filename):
         revive_config = ROOT_DIR / config_filename
     else:
         revive_config = None
+
+    linter_to_use = ("revive", "--config", str(revive_config),) if revive_config else ("revive",)
+
     return LanguageSettings(
         transpiler=GoTranspiler(),
         ext=".go",
         display_name="Go",
-        formatter=["gofmt", "-w"],
-        # None, # WTF is this?
-        rewriters=[GoNoneCompareRewriter(), GoVisibilityRewriter(), GoIfExpRewriter()],
-        transformers=[infer_go_types],
-        post_rewriters=[GoMethodCallRewriter(), GoPropagateTypeAnnotation()],
-        linter=(
-            ["revive", "--config", str(revive_config)] if revive_config else ["revive"]
+        formatter=("gofmt", "-w",),
+        rewriters=(
+            GoNoneCompareRewriter(),
+            GoVisibilityRewriter(),
+            GoIfExpRewriter(),
         ),
+        transformers=(infer_go_types,),
+        post_rewriters=(GoMethodCallRewriter(), GoPropagateTypeAnnotation(),),
+        linter=linter_to_use,
     )

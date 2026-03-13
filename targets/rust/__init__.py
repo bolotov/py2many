@@ -1,10 +1,3 @@
-"""
-Rust target language backend for py2many.
-
-Defines the `settings()` function that returns a configured LanguageSettings
-object used for transpiling Python code to Rust.
-"""
-
 import os
 from functools import partial
 from py2many.language import LanguageSettings
@@ -18,32 +11,22 @@ from .transpiler import (
 
 
 def settings(args, env=os.environ) -> LanguageSettings:
-    """
-    Configure Rust backend with all necessary rewriters, formatters, linters, etc.
-
-    Args:
-        args: Command-line arguments or similar config object.
-        env: Environment variables mapping.
-
-    Returns:
-        LanguageSettings object with Rust-specific configuration.
-    """
     return LanguageSettings(
         transpiler=RustTranspiler(args.extension, args.no_prologue),
         ext=".rs",
         display_name="Rust",
-        formatter=[
+        formatter=(
             "rustfmt",
             "--edition=2021",
-        ],
-        rewriters=[RustNoneCompareRewriter()],
-        transformers=[partial(infer_rust_types, extension=args.extension)],
-        post_rewriters=[
+        ),
+        rewriters=(RustNoneCompareRewriter(),),
+        transformers=(partial(infer_rust_types, extension=args.extension), ),
+        post_rewriters=(
             RustLoopIndexRewriter(),
             RustStringJoinRewriter(),
-        ],
-        linter=[
+        ),
+        linter=(
             "../../scripts/rust-runner.sh",
             "lint",
-        ],
+        ),
     )

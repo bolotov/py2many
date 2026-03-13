@@ -15,26 +15,6 @@ def iter_body(body):
     return [body]
 
 
-def safe_attr(node, name, default=None):
-    """Read an attribute from an AST node without raising."""
-    return getattr(node, name, default)
-
-
-def is_name(node):
-    """Return True if node is ast.Name."""
-    return isinstance(node, ast.Name)
-
-
-def is_attribute(node):
-    """Return True if node is ast.Attribute."""
-    return isinstance(node, ast.Attribute)
-
-
-def get_name_id(node):
-    """Return identifier if node is ast.Name, else None."""
-    return node.id if isinstance(node, ast.Name) else None
-
-
 def get_call_name(node):
     if not isinstance(node, ast.Call):
         return None
@@ -67,10 +47,9 @@ def mark_assigned(target: ast.AST, assign_node: ast.AST, scope: ast.AST) -> None
     scope.vars.add(target)
 
 
-
 def get_id(node: ast.AST | None) -> str | None: # IMPORTANT: this is USED IN MANY PLACES!!
     """
-    Return the identifier represented by an AST node, if it has one.
+    Return the identifier name extracted from common AST nodes, if it has one.
 
     This function extracts identifier-like names from common declaration
     and reference nodes. For literal nodes (``ast.Constant``), it returns
@@ -90,12 +69,6 @@ def get_id(node: ast.AST | None) -> str | None: # IMPORTANT: this is USED IN MAN
     Returns:
         (str | None): The extracted identifier or literal representation,
          or None if the node does not represent an identifier-like value.
-    """
-
-
-
-    """
-    Extract identifier name from common AST nodes.
     """
 
     if not isinstance(node, ast.AST):

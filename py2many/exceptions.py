@@ -7,6 +7,7 @@ class _InternalErrorBase(Exception):
     """    
     A base  class for internal errors in the transpiler,
     such as when a node does not have a line number or column offset.
+
     Errors occurring when a node with lineno is not available
     should not inherit from this class, as they are not internal errors.
     """
@@ -51,8 +52,6 @@ class AstClassUsedBeforeDeclaration(AstNotImplementedError):
 
 
 class AstCouldNotInfer(AstNotImplementedError):
-    """Unable to infer type"""
-
     def __init__(self, type_node, node: ast.AST):
         super().__init__(f"Could not infer: {type_node}", node)
 

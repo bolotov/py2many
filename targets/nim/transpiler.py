@@ -3,6 +3,7 @@ from typing import List
 
 from py2many.analysis import is_mutable, is_void_function
 from py2many.ast_helpers import get_id
+from py2many.ast_predicates import is_number
 from py2many.clike import class_for_typename
 from py2many.declaration_extractor import DeclarationExtractor
 from py2many.exceptions import AstClassUsedBeforeDeclaration
@@ -263,13 +264,11 @@ class NimTranspiler(CLikeTranspiler):
 
     def visit_UnaryOp(self, node) -> str:
         if isinstance(node.op, ast.USub):
-            if isinstance(node.operand, (ast.Call, ast.Num)):
-                # Shortcut if parenthesis are not needed
+            if isinstance(node.operand, ast.Call) or is_number(node.operand):
                 return f"-{self.visit(node.operand)}"
             else:
                 return f"-({self.visit(node.operand)})"
-        else:
-            return super().visit_UnaryOp(node)
+        return super().visit_UnaryOp(node)
 
     def visit_ClassDef(self, node) -> str:
         extractor = DeclarationExtractor(NimTranspiler())

@@ -5,7 +5,12 @@ from typing import Callable, Dict, List, Tuple, Union
 
 class DartTranspilerPlugins:
     @staticmethod
-    def visit_range(node, vargs: List[str]) -> str:
+    def visit_range(node, vargs):
+        """
+        Probably this is something about Dart range notation ...
+        TODO:
+        FIXME:
+        """
         start = 0
         step = 1
         if len(vargs) == 1:
@@ -46,7 +51,7 @@ class DartTranspilerPlugins:
         return f"exit({vargs[0]})"
 
 
-# small one liners are inlined here as lambdas
+# small one-liners are inlined here as lambdas
 SMALL_DISPATCH_MAP = {
     "str": lambda n, vargs: f"{vargs[0]}.toString()" if vargs else '""',
     "len": lambda n, vargs: f"{vargs[0]}.length",

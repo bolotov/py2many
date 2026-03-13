@@ -171,8 +171,8 @@ class DartTranspiler(CLikeTranspiler):
         buf.append("}")
         return "\n".join(buf)
 
-    def visit_Str(self, node) -> str:
-        return "" + super().visit_Str(node) + ""
+    # def visit_Str(self, node) -> str:
+    #    return "" + super().visit_Str(node) + ""
 
     def visit_Bytes(self, node) -> str:
         bytes_str = f"{node.value}" # WAS: node.s

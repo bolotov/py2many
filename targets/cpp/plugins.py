@@ -116,9 +116,9 @@ MODULE_DISPATCH_TABLE = {
     "random": "<cstdlib>",
 }
 
-DECORATOR_DISPATCH_TABLE = {}
+DECORATOR_DISPATCH_TABLE: dict[str, str]= {}
 
-CLASS_DISPATCH_TABLE = {}
+CLASS_DISPATCH_TABLE: dict[str, str] = {}
 
 
 def emit_argv(self, node, value, attr):

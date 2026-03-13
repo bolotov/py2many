@@ -1,7 +1,7 @@
 import ast
 
-from .ast_helpers import create_ast_node
-from .clike import CLikeTranspiler
+from py2many.ast_helpers import create_ast_node
+from py2many.clike import CLikeTranspiler
 
 
 class RestoreMainRewriter(ast.NodeTransformer):

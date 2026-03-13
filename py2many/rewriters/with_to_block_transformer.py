@@ -56,32 +56,44 @@ class WithToBlockTransformer(ast.NodeTransformer):
             if i.optional_vars:
                 target = i.optional_vars
             else:
-                target = ast.Name(id=self._get_temp(), lineno=node.lineno)
+                target = ast.Name(
+                    id=self._get_temp(),
+                    lineno=node.lineno
+                )
             stmt = ast.Assign(
-                targets=[target], value=i.context_expr, lineno=node.lineno
+                targets=[target],
+                value=i.context_expr,
+                lineno=node.lineno
             )
             stmts.append(stmt)
         node.body = stmts + node.body
         ret = create_ast_block(body=node.body, at_node=node)
-        # Hint to UnpackScopeRewriter below to leave the new scope alone
+        # IMPORTANT: unpack false is a hint to UnpackScopeRewriter to leave the new scope alone
         ret.unpack = False
         return ret
 
 
-def capitalize_first(name):
-    first = name[0].upper()
-    remainder = list(name)
-    remainder.remove(name[0])
-    remainder = "".join(remainder)
-    return first + remainder
+# def capitalize_first(name):
+#     first_letter = name[0].upper()
+#     remainder = list(name)
+#     remainder.remove(name[0])
+#     remainder = "".join(remainder)
+#     return first_letter + remainder
+
+def capitalize_first(name) -> str:
+    first_letter = name[0].upper()
+    remainder = name[1:]
+    return first_letter + remainder
 
 
-def camel_case(name):
-    if "_" not in name:
+def camel_case(name) -> str:
+    if (
+            "_" not in name
+            or
+            (name.startswith("__") and name.endswith("__"))
+    ):
         return name
-    # Dont rewrite dunders
-    if name.startswith("__") and name.endswith("__"):
-        return name
-    return "".join(capitalize_first(part) if part else "" for part in name.split("_"))
-
-
+    else:
+        return "".join(capitalize_first(part) if
+                       part else
+                       "" for part in name.split("_"))

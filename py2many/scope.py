@@ -15,9 +15,8 @@ _SCOPE_TYPES = (
 )
 
 
-def add_scope_context(node):
-    """Provide to scope context to all nodes"""
-    return ScopeTransformer().visit(node)
+def add_scope_context(node): return ScopeTransformer().visit(node)
+"""Provide to scope context to all nodes"""
 
 
 class ScopeMixin:

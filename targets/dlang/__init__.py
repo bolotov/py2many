@@ -15,13 +15,13 @@ def settings(args, env=os.environ):
         transpiler=DTranspiler(),
         ext=".d",
         display_name="D",
-        formatter=[
+        formatter=(
             "dub",
             "run",
             "--yes",
             "dfmt",
             "--",
             *dfmt_args,
-        ],
-        post_rewriters=[DIntegerDivRewriter()],
+        ),
+        post_rewriters=(DIntegerDivRewriter(),),
     )

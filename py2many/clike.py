@@ -32,6 +32,7 @@ from typing import (  # noqa: F401
 from py2many.analysis import IGNORED_MODULE_SET
 from py2many.ast_helpers import *
 from py2many.astx import LifeTime
+from py2many.ast_predicates import is_callable_definition
 from py2many.exceptions import (
     AstCouldNotInfer,
     AstEmptyNodeFound,
@@ -99,10 +100,10 @@ if not logger.handlers:
 
 
 def class_for_typename(
-        typename: Optional[str],
-        default_type: Any,
+        typename: Optional[list[str]| str],
+        default_type,
         localns: Optional[Mapping[str, Any]] = None,
-) -> Any:
+) -> Optional[Union[str, object]]:
     """
     Resolve a type annotation string into a Python object.
 
@@ -188,8 +189,8 @@ class CLikeTranspiler(ast.NodeVisitor):
         """
         self._headers = set()
         self._usings = set()
-        self._aliases = {} # PROBABLY:  Dict[str, str]
-        self._imported_names = {} # PROBABLY:  Dict[str, Any]
+        self._aliases = {}
+        self._imported_names = {}
         self._features = set()
         self._statement_separator = ";" # separators **besides** newline
         self._main_signature_arg_names = []
@@ -233,63 +234,61 @@ class CLikeTranspiler(ast.NodeVisitor):
         self._extension = extension
         self._throw_on_unimplemented = throw_on_unimplemented
 
+    # MARK: Placeholders for language-specific overrides
 
-    def visit_all(self, nodes) -> str:
-        """Visit all nodes in a list."""
-        for node in nodes:
-            self.visit(node)
+    @property
+    def aliases(self) -> str: return ""
+    """Return any type aliases needed for the target language as a string."""
 
-    def headers(self, meta=None) -> str:
-        """Return the necessary headers for the target language as a string."""
-        return ""
+    def headers(self, meta=None) -> str: return ""
+    """Return the necessary headers for the target language as a string."""
 
-    def usings(self) -> str:
-        """Return the necessary using/import statements for the target language as a string."""
-        return ""
+    def usings(self) -> str: return ""
+    """Return the necessary using/import statements for the target language as a string."""
 
-    @staticmethod
-    def aliases() -> str:
-        """Return any type aliases needed for the target language as a string."""
-        return ""
 
-    @staticmethod
-    def features() -> str:
-        """Return any language features needed for the target language as a string."""
-        return ""
+
+    def _import(self, name: str): ...
+    """
+    Placeholder for the method that handles the actual
+    import logic for a module name.
+
+    Args:
+    name (str): The name of the module to import.
+
+    Returns:
+    str: A string representing the import statement
+    for the target language.
+    """
 
 
     @property
-    def extension(self):
-        """Whether the transpiler is being used in extension mode,
-        where it is expected to produce code snippets
-        to be embedded in handwritten code, rather than a complete program.
-        This can be used to conditionally include or exclude certain code
-        constructs or prologue/epilogue code.
-        """
-        return self._extension
+    def main_signature_arg_names(self):
+        return self._main_signature_arg_names
+
+    @property
+    def features(self) -> str: return ""
+    """Return any language features needed for the target language as a string."""
+
+    def extension(self) -> bool: return self._extension
+    """Whether the transpiler is being used in **extension mode**"""
+
+    @property
+    def extension_module(self) -> str: return ""
+    """Return the module name to use for an extension build, if applicable."""
 
     @staticmethod
-    def extension_module() -> str:
-        """Return the module name to use for an extension build, if applicable."""
-        return ""
-
-    @staticmethod
-    def comment(text) -> str:
-        """Return a comment string for the target language."""
-        return f"/* {text} */"
+    def comment(text) -> str: return f"/* {text} */"
+    """Return a comment string for the target language."""
 
     @staticmethod
     def comment_block(lines: list[str]) -> str:
         """Emit a block comment."""
-        body = "\n".join(lines)
-        return f"/*\n{body}\n*/"
-
+        return f"/*\n" + f"'\n'.join(lines)" + f"\n*/"
 
     @staticmethod
-    def _cast(name: str, to) -> str:
-        """Return a string representing a cast of name to the type represented by to in the target language."""
-        return f"({to}) {name}"
-
+    def _cast(name: str, to) -> str: return f"({to}) {name}"
+    """Return a string representing a cast of name to the type represented by to in the target language."""
 
     @staticmethod
     def _slice_value(node: ast.Subscript) -> ast.AST:
@@ -357,9 +356,7 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     @classmethod
     def _map_types(cls, typenames: List[str]) -> List[str]:
-        """
-        Map a list of annotation strings to target-language types.
-        """
+        """Map a list of annotation strings to target-language types."""
         return [cls._map_type(name) for name in typenames]
 
 
@@ -378,7 +375,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         Combine a value type and an index type into a single string representation for container types.
         For example, if we have a value type of "List" and an index type of "int",
         this method might return "List<int>" for a language like C++ or "Vec<i32>" for Rust.
-        The exact format of the combined type string can be customized based on the conventions of the target language.
         """
         return f"{value_type}<{index_type}>"
 
@@ -467,7 +463,6 @@ class CLikeTranspiler(ast.NodeVisitor):
                 value_type = cls._map_container_type(value_type)
 
                 node.container_type = (value_type, index_type) # FIXME: UGLY_AST_MODDING
-                # ."Subscript" has no attribute "container_type"
 
                 return cls._combine_value_index(value_type, index_type)
 
@@ -588,7 +583,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         return self.comment("pass")
 
 
-
     def visit_Module(self, node) -> str:
         """Visit a module node and emit the top-level translation unit.
 
@@ -602,35 +596,14 @@ class CLikeTranspiler(ast.NodeVisitor):
 
         buf = []
 
-        def is_callable_definition(n: ast.AST) -> bool:
-            """
-            Identify nodes that represent top-level callable definitions.
-
-            FIX:
-            The previous implementation explicitly checked only
-            `ast.FunctionDef`. This caused `ast.AsyncFunctionDef`
-            (and any future callable node types) to be processed in the
-            wrong phase.
-
-            The classification is now centralized in this predicate,
-            eliminating duplicated type checks and preventing omissions.
-            """
-            return isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-
-        # ---------------------------------------------------------
         # Phase 1: declarations
-        # ---------------------------------------------------------
-
         for stmt in node.body:
             if not is_callable_definition(stmt):
                 result = self.visit(stmt)
                 if result:
                     buf.append(result)
 
-        # ---------------------------------------------------------
         # Phase 2: callable definitions
-        # ---------------------------------------------------------
-
         for stmt in node.body:
             if is_callable_definition(stmt):
                 result = self.visit(stmt)
@@ -655,40 +628,25 @@ class CLikeTranspiler(ast.NodeVisitor):
         return node.name, node.asname
 
 
-    def _import(self, name: str):
-        """
-        Placeholder for the method that handles the actual
-        import logic for a module name.
-
-        Args:
-            name (str): The name of the module to import.
-
-        Returns:
-            str: A string representing the import statement
-            for the target language.
-        """
-        raise NotImplementedError # WAS: ...
 
 
     def _import_from(
             self, module_name: str, names: List[str], level: int = 0
-    ):
-        """
-        Placeholder for handling 'from ... import ...' statements.
+    ): ...
+    """
+    Placeholder for handling 'from ... import ...' statements.
 
-        Args:
-            module_name (str): The module being imported from.
-            names (List[str]): The list of names being imported.
-            level (int, optional): Relative import level (0 for absolute). Defaults to 0.
+    Args:
+        module_name (str): The module being imported from.
+        names (List[str]): The list of names being imported.
+        level (int, optional): Relative import level (0 for absolute). Defaults to 0.
 
-        Returns:
-            str: A string representing the import statements needed for the target language.
-        """
-        ...
-        #raise NotImplementedError # WAS: ...
+    Returns:
+        str: A string representing the import statements needed for the target language.
+    """
 
 
-    def visit_Import(self, node: ast.Import):
+    def visit_Import(self, node: ast.Import) -> str:
         """
         Visit an import statement node, e.g., `import numpy as np`.
 
@@ -698,20 +656,16 @@ class CLikeTranspiler(ast.NodeVisitor):
         Returns:
             str: A string containing import statements in the target language.
         """
-        names = [self.visit(n) for n in node.names]
-        imports = [
-            self._import(name)
-            for name, alias in names
-            if name not in self._ignored_module_set
-        ]
-        for name, asname in names:
-            if asname is not None:
-                try:
-                    imported_name = importlib.import_module(name)
-                except ImportError:
-                    imported_name = name
-                self._imported_names[asname] = imported_name
-        return "\n".join(imports)
+        def process(a):
+            """Process an import alias node."""
+            if a.name in self._ignored_module_set: return ""
+            if a.asname:
+                try: v = importlib.import_module(a.name)
+                except ImportError: v = a.name
+                self._imported_names[a.asname] = v
+            return self._import(a.name)
+
+        return "\n".join(filter(None, (process(a) for a in node.names)))
 
 
     def visit_ImportFrom(self, node: ast.ImportFrom): # not only str?
@@ -801,14 +755,10 @@ class CLikeTranspiler(ast.NodeVisitor):
     # MARK: - Render hooks - to be overridden in target
 
     @staticmethod
-    def render_bool(value: bool) -> str:
-        return "true" if value else "false"
-
+    def render_bool(value: bool) -> str: return "true" if value else "false"
 
     @staticmethod
-    def render_none() -> str:
-        return "nullptr"
-
+    def render_none() -> str: return "nullptr"
 
     @staticmethod
     def render_int(value: int) -> str:
@@ -816,25 +766,20 @@ class CLikeTranspiler(ast.NodeVisitor):
             return f"{value}LL"
         return str(value)
 
-
     @staticmethod
     def render_float(value: float) -> str:
         s = str(value)
         return s if "." in s or "e" in s.lower() else f"{s}.0"
 
-
     @staticmethod
     def render_complex(value: complex) -> str:
         return f"std::complex<double>({value.real}, {value.imag})"
 
-
     def render_string(self, value: str) -> str:
         return self._escape_string(value)
 
-
     def render_bytes(self, value: bytes) -> str:
         return self._escape_bytes(value)
-
 
     def render_ellipsis(self) -> str:
         return self.comment("...")
@@ -955,12 +900,11 @@ class CLikeTranspiler(ast.NodeVisitor):
         return (
                 isinstance(node.test, ast.Constant)
                 and node.test.value == True
-                and node.orelse == []
-                and hasattr(node, "rewritten")
+                and node.orelse == [] # no else clause which would break the block semantics
+                and hasattr(node, "rewritten") # rewriter sets this attribute to indicate the node has been transformed into a block
                 and node.rewritten
         )
 
-    #def visit_If(self, node: ast.If, use_parens: bool = True) -> str:
     def visit_If(self, node, use_parens=True) -> str:
         """
         Translates an `if` statement into target C-like source code.
@@ -999,24 +943,50 @@ class CLikeTranspiler(ast.NodeVisitor):
         return "\n".join(buf)
 
     def visit_Continue(self, node) -> str:
-        """Visit a continue statement node,
-        which represents a continue statement in a loop.
+        """Translate an ``ast.Continue`` node.
+
+        Args:
+            node (ast.Continue):
+                The ``continue`` statement node.
+
+        Returns:
+            str:
+                The target-language representation of the statement.
         """
         return "continue;"
 
     def visit_Break(self, node) -> str:
+        """Translate an ``ast.Break`` node.
+
+        Args:
+            node (ast.Break):
+                The ``break`` statement node.
+
+        Returns:
+            str:
+                The target-language representation of the statement.
         """
-        Visit a break statement node, which represents a break statement in a loop."""
         return "break;"
 
     def visit_While(self, node, use_parens=True) -> str:
-        """
-        Visit a while loop node, which represents a while loop in the code.
-        This method handles the translation of while loops,
-        including their test conditions and body.
-         It also includes special handling for the same block-creating idiom used in visit_If,
-        where a while loop with a test condition of True and no else clause is used to create a block of statements.
-        In this case, the method will generate a block of code without the while condition, allowing the statements to be executed sequentially.
+        """Translate an ``ast.While`` node into a C-style loop.
+
+        Generates a ``while`` loop with the translated condition and body.
+
+        Args:
+            node (ast.While):
+                The ``while`` loop AST node.
+            use_parens (bool):
+                Whether to wrap the condition expression in parentheses.
+
+        Returns:
+            str:
+                A string representing the translated loop, including the loop
+                body enclosed in braces.
+
+        Notes:
+            Each statement in the loop body is visited recursively using
+            ``self.visit``.
         """
         buf = []
         if use_parens:
@@ -1027,16 +997,26 @@ class CLikeTranspiler(ast.NodeVisitor):
         buf.append("}")
         return "\n".join(buf)
 
+
     def visit_Compare(self, node) -> str:
+        """Translate an ``ast.Compare`` node into a comparison expression.
+
+        Supports simple binary comparisons (e.g., ``a < b``). If the comparison
+        operator is ``in``, translation is delegated to ``visit_In``.
+
+        Args:
+            node (ast.Compare):
+                The comparison expression node.
+
+        Returns:
+            str:
+                A string representing the translated comparison expression.
+
+        Notes:
+            Only the first comparison operator and comparator are currently
+            emitted. Python chained comparisons (e.g., ``a < b < c``) are not
+            fully expanded.
         """
-        Visit a comparison node, which represents a comparison
-        operation in the code, such as "a < b" or "x == y".
-         This method handles the translation of comparison operations,
-        including support for chained comparisons like "a < b < c".
-         It also includes special handling for the "in" operator,
-         which is represented as a comparison in the AST but may
-         require different handling in the target language.
-         """
         if isinstance(node.ops[0], ast.In):
             return self.visit_In(node)
 
@@ -1046,19 +1026,43 @@ class CLikeTranspiler(ast.NodeVisitor):
 
         return f"{left} {op} {right}"
 
+
     def visit_BoolOp(self, node) -> str:
-        """Visit a boolean operation node, which represents a logical
-        operation in the code, such as "and" or "or".
-        This method handles the translation of boolean operations,
-        including support for chaining multiple operations together,
-        such as "a and b and c"."""
+        """Translate an ``ast.BoolOp`` node into a logical expression.
+
+        Handles logical operations such as ``and`` and ``or`` by joining the
+        translated operands using the target-language operator.
+
+        Args:
+            node (ast.BoolOp):
+                The boolean operation node.
+
+        Returns:
+            str:
+                A string representing the logical expression.
+
+        Notes:
+            All operand expressions are recursively translated using
+            ``self.visit`` and joined using the operator returned by
+            ``visit(node.op)``.
+        """
         op = self.visit(node.op)
         return op.join([self.visit(v) for v in node.values])
 
     def visit_UnaryOp(self, node) -> str:
-        """
-        Visit a unary operation node, which represents
-        a unary operation in the code, such as "not" or "-x".
+        """Translate an ``ast.UnaryOp`` node into a unary expression.
+
+        Handles unary operations such as logical negation (``not``) or
+        arithmetic negation (``-x``).
+
+        Args:
+            node (ast.UnaryOp):
+                The unary operation node.
+
+        Returns:
+            str:
+                A string representing the translated unary expression in the
+                form ``operator(operand)``.
         """
         return f"{self.visit(node.op)}({self.visit(node.operand)})"
 
@@ -1127,17 +1131,7 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     # MARK : - Misc. unsupported
 
-    #def generic_visit(self, node: ast.AST) -> str:
-    #    """
-    #    Default visitor for nodes without specific handlers.
 
-    #    Ensures that all child nodes are traversed so that
-    #    dependency discovery and symbol analysis still work.
-    #    """
-    #    for child in ast.iter_child_nodes(node):
-    #        self.visit(child)
-
-    #    return ""
 
     def generic_visit(self, node: ast.AST | None) -> str:
         """
@@ -1232,9 +1226,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         Python's 'del' statement has no direct equivalent.
         """
         return self.visit_unsupported_body(node, "del", node.targets)
-        # WAS: double visit like this:
-        # body = [self.visit(t) for t in node.targets]
-        #return self.visit_unsupported_body(node, "del", body)
 
     def visit_Starred(self, node) -> str:
         """
@@ -1332,14 +1323,11 @@ class CLikeTranspiler(ast.NodeVisitor):
             return self.visit_IntFlag(node)
         return None
 
-    def visit_StrEnum(self, node) -> str:
-        raise Exception("Unimplemented")
+    def visit_StrEnum(self, node): ...
 
-    def visit_IntEnum(self, node) -> str:
-        raise Exception("Unimplemented")
+    def visit_IntEnum(self, node): ...
 
-    def visit_IntFlag(self, node) -> str:
-        raise Exception("Unimplemented")
+    def visit_IntFlag(self, node): ...
 
     def visit_IfExp(self, node) -> str:
         """
@@ -1495,8 +1483,4 @@ class CLikeTranspiler(ast.NodeVisitor):
 
         return None
 
-
-    @property
-    def main_signature_arg_names(self):
-        return self._main_signature_arg_names
 

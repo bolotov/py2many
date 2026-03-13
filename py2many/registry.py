@@ -2,8 +2,7 @@
 Backend registry and dynamic target discovery.
 """
 
-from __future__ import annotations
-
+import functools
 import importlib
 import logging
 import pkgutil
@@ -12,21 +11,21 @@ from typing import Any
 
 import targets
 from py2many.language import LanguageSettings
-from py2many.python_transformer import PythonTranspiler, RestoreMainRewriter
 from py2many.rewriters.inferred_ann_assign import InferredAnnAssignRewriter
-
-SettingsFactory = Callable[[Any, Mapping[str, str] | None], LanguageSettings]
+from py2many.transformers.python_transformer import PythonTranspiler, RestoreMainRewriter
 
 log = logging.getLogger(__name__)
 
-def python_settings(args: Any, env: Mapping[str, str] | None = None) -> LanguageSettings:
+SettingsFactory = Callable[[Any, Mapping[str, str] | None], LanguageSettings]
+
+def python_settings(args) -> LanguageSettings:
     return LanguageSettings(
         transpiler=PythonTranspiler(args.no_prologue),
         ext=",py",
         display_name="Python",
-        formatter=["black"],
-        rewriters=[RestoreMainRewriter()],
-        post_rewriters=[InferredAnnAssignRewriter()],
+        formatter=("black",),
+        rewriters=(RestoreMainRewriter(),),
+        post_rewriters=(InferredAnnAssignRewriter(),),
     )
 
 
@@ -42,7 +41,6 @@ def _discover_targets() -> dict[str, SettingsFactory]:
             factory = getattr(module_obj, "settings")
         except Exception as exc:
             log.warning("Skipping backend '%s': %s", name, exc)
-            # print(f"Skipping backend '{name}': {exc}")
             continue
 
         if callable(factory):
@@ -53,25 +51,12 @@ def _discover_targets() -> dict[str, SettingsFactory]:
     return discovered
 
 
-ALL_SETTINGS: dict[str, SettingsFactory] = {
-    "python": python_settings,
-    **_discover_targets(),
-}
+@functools.cache
+def get_all_settings(args ) -> dict[str, LanguageSettings]:
 
-
-import os
-from collections.abc import Mapping
-
-
-def get_all_settings(
-        args: Any,
-        env: Mapping[str, str] | None = None,
-) -> dict[str, LanguageSettings]:
-
-    if env is None:
-        env = os.environ
-
-    return {
-        name: factory(args, env)
-        for name, factory in ALL_SETTINGS.items()
+    ALL_SETTINGS = {
+        "python": python_settings,
+        **_discover_targets(), # Here
     }
+
+    return { name: factory(args) for name, factory in ALL_SETTINGS.items() }

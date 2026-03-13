@@ -19,14 +19,10 @@ from py2many.clike import CLikeTranspiler, class_for_typename
 from py2many.exceptions import AstIncompatibleAssign, AstUnrecognisedBinOp
 from py2many.tracer import is_enum
 
-try:
-    from typpete.context import Context
-    from typpete.inference_runner import infer as infer_types_ast
-    from typpete.z3_types import TypesSolver
-except ModuleNotFoundError:
 
-    def infer_types_ast(node):
-        return node
+
+def infer_types_ast(node, context, solver):
+    return node
 
 
 @dataclass
@@ -507,7 +503,7 @@ class InferTypesTransformer(ast.NodeTransformer):
             return "float"
         return left_id if left_idx > right_idx else right_id
 
-    def visit_BinOp(self, node):
+    def visit_BinOp( self, node: ast.BinOp,) -> ast.AST:
         """Infer type of binary operation based on
         the types of the operands and the operator,
         and annotate the node with the resulting type.
@@ -599,9 +595,9 @@ class InferTypesTransformer(ast.NodeTransformer):
             node.annotation = ast.Name(id=left_id)
             return node
 
-        LEGAL_COMBINATIONS = {("str", ast.Mod), ("List", ast.Add)}
+        legal_combinations = {("str", ast.Mod), ("List", ast.Add)}
 
-        if left_id is not None and (left_id, type(node.op)) not in LEGAL_COMBINATIONS:
+        if left_id is not None and (left_id, type(node.op)) not in legal_combinations:
             raise AstUnrecognisedBinOp(left_id, right_id, node)
 
         return node

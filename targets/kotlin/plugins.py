@@ -18,8 +18,7 @@ class KotlinTranspilerPlugins:
             f"encountered range() call with unknown parameters: range({vargs})"
         )
 
-    @staticmethod
-    def visit_print(node, vargs: List[str]) -> str:
+    def visit_print(self, node, vargs: List[str]) -> str:
         def _format(arg):
             if arg.isdigit():
                 return arg

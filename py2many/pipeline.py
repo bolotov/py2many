@@ -51,7 +51,7 @@ from py2many.rewriters import (
 )
 
 from py2many.utilities.toposort_modules import toposort
-from py2many.utilities.logger import setup_logger
+from py2many.utilities.logger import setup_logger, LogLevel, LoggerConfig
 
 from .analysis import add_imports
 from py2many.transformers.annotation_transformer import add_annotation_flags
@@ -438,6 +438,22 @@ def transpile_from_args(
         args: argparse.Namespace,
 ) -> int:
     """Entry point used by CLI."""
+    global _log
+    
+    # Set up logging based on CLI arguments
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+    
+    if quiet:
+        log_level = LogLevel.ERROR
+    elif verbose >= 2:
+        log_level = LogLevel.DEBUG
+    elif verbose >= 1:
+        log_level = LogLevel.DEBUG
+    else:
+        log_level = LogLevel.INFO
+    
+    _log = setup_logger(LoggerConfig(level=log_level, name="py2many"))
 
     if getattr(args, "version", False):
         print(__version__)

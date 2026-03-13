@@ -40,6 +40,7 @@ from py2many.exceptions import (
     AstTypeNotSupported,
     TypeNotSupported,
 )
+from py2many.utilities.logger import setup_logger, LoggerConfig
 
 # from py2many.result import Result  # noqa: F401
 
@@ -96,6 +97,9 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.WARNING)
+
+# Functional logger for bridge method tracing
+_bridge_log = setup_logger(LoggerConfig(name="py2many.bridge"))
 
 
 
@@ -751,6 +755,67 @@ class CLikeTranspiler(ast.NodeVisitor):
                     node=node
                 ) # msg, node <-- correct parameters
 
+    # Bridge methods for backward compatibility with old AST node types
+    # (deprecated in Python 3.8+, now merged into ast.Constant)
+    # These allow backends that still override visit_Str/visit_Bytes/visit_NameConstant
+    # to work correctly
+    
+    def visit_Str(self, node: ast.Constant | Any) -> str:
+        """Handle string constants (backward compatibility for ast.Str).
+        
+        In older Python AST, this was ast.Str(s=value).
+        Now it's ast.Constant(value=str).
+        This method bridges the difference for backend compatibility.
+        """
+        # Handle both old ast.Str and new ast.Constant
+        if hasattr(node, 's'):  # Old ast.Str has 's' attribute
+            _bridge_log.debug(f"visit_Str: using legacy ast.Str node, extracted value: {node.s!r}")
+            return self.render_string(node.s)
+        elif hasattr(node, 'value'):  # New ast.Constant
+            _bridge_log.debug(f"visit_Str: using new ast.Constant node, extracted value: {node.value!r}")
+            return self.render_string(node.value)
+        else:
+            raise AstNotImplementedError(f"Cannot extract string from {node}", node)
+    
+    def visit_Bytes(self, node: ast.Constant | Any) -> str:
+        """Handle bytes constants (backward compatibility for ast.Bytes).
+        
+        In older Python AST, this was ast.Bytes(s=value).
+        Now it's ast.Constant(value=bytes).
+        """
+        # Handle both old ast.Bytes and new ast.Constant
+        if hasattr(node, 's'):  # Old ast.Bytes has 's' attribute
+            _bridge_log.debug(f"visit_Bytes: using legacy ast.Bytes node, extracted value length: {len(node.s)}")
+            return self.render_bytes(type('obj', (), {'value': node.s})())
+        elif hasattr(node, 'value'):  # New ast.Constant
+            _bridge_log.debug(f"visit_Bytes: using new ast.Constant node, extracted value length: {len(node.value)}")
+            return self.render_bytes(type('obj', (), {'value': node.value})())
+        else:
+            raise AstNotImplementedError(f"Cannot extract bytes from {node}", node)
+    
+    def visit_NameConstant(self, node: ast.Constant | Any) -> str:
+        """Handle name constants like None, True, False (backward compatibility).
+        
+        In older Python AST, this was ast.NameConstant(value=None/True/False).
+        Now it's ast.Constant(value=None/True/False/...).
+        """
+        # Handle both old ast.NameConstant and new ast.Constant
+        value = getattr(node, 'value', None)
+        
+        if value is None:
+            _bridge_log.debug("visit_NameConstant: processing None constant")
+            return self.render_none()
+        elif isinstance(value, bool):
+            _bridge_log.debug(f"visit_NameConstant: processing bool constant: {value}")
+            return self.render_bool(value)
+        elif value is Ellipsis:
+            _bridge_log.debug("visit_NameConstant: processing Ellipsis constant")
+            return self.render_ellipsis()
+        else:
+            raise AstNotImplementedError(
+                msg=f"Unsupported NameConstant value: {type(value).__name__}",
+                node=node
+            )
 
     # MARK: - Render hooks - to be overridden in target
 
@@ -787,41 +852,40 @@ class CLikeTranspiler(ast.NodeVisitor):
 
 
     @staticmethod
-    def _escape_bytes(node) -> str:
-        """Renders bytes as a C-style escaped hex string.
-
+    def _escape_bytes(value: bytes) -> str:
+        """Escape a bytes value for the target language as hex string.
+        
+        Renders bytes as a C-style escaped hex string.
+        
         Args:
-            node (ast.Node): ast node for raw byte sequence.
-
+            value: The bytes value to escape (not an AST node)
+            
         Returns:
-            str: A C-style string literal (e.g., '"\\x41\\x42"').
+            str: A C-style string literal (e.g., '"\\x41\\x42"')
         """
         # Uses a generator to hex-escape every single byte
-
-        bytes_str = node.value
-
-        body = "".join(f"\\x{b:02x}" for b in bytes_str)
+        body = "".join(f"\\x{b:02x}" for b in value)
         return f'"{body}"'
 
 
 
     @staticmethod
-    def _escape_string(node) -> str:
-        """
-        Visit a string literal node.
-
+    def _escape_string(value: str) -> str:
+        """Escape a string value for the target language.
+        
+        Handles proper escaping of special characters like quotes, newlines, etc.
+        
         Args:
-            node (ast.Str): The AST string node.
-
+            value: The string value to escape (not an AST node)
+            
         Returns:
-            str: Properly escaped string for the target language.
+            str: Properly escaped string for the target language (with surrounding quotes)
         """
-        node_str = node.value
-        node_str = node_str.replace('"', '\\"')
-        node_str = node_str.replace("\n", "\\n")
-        node_str = node_str.replace("\r", "\\r")
-        node_str = node_str.replace("\t", "\\t")
-        return f'"{node_str}"'
+        escaped = value.replace('"', '\\"')
+        escaped = escaped.replace("\n", "\\n")
+        escaped = escaped.replace("\r", "\\r")
+        escaped = escaped.replace("\t", "\\t")
+        return f'"{escaped}"'
 
 
 

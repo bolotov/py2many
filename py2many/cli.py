@@ -100,6 +100,20 @@ def parse_args(arguments: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--project",
         default=True
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity: -v for DEBUG, -vv for TRACE (can be used multiple times)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        default=False,
+        help="Suppress non-essential output; only show errors",
+    )
 
     parsed_args, rest = parser.parse_known_args(args=arguments)
     parsed_args._rest = rest  # Attach rest for downstream use

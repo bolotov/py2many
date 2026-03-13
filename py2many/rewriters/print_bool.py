@@ -13,7 +13,7 @@ class PrintBoolRewriter(ast.NodeTransformer):
     @staticmethod
     def _do_other_rewrite(node) -> ast.AST:
         ifexpr = cast(
-            ast.Expr, create_ast_node("'True' if true else 'False'", node)
+            ast.Expr, create_ast_node("True if True else False", node)
         ).value
         ifexpr = cast(ast.IfExp, ifexpr)
         ifexpr.test = node.args[0]

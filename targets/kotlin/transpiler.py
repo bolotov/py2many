@@ -1,5 +1,5 @@
 import ast
-from typing import List, Tuple
+from typing import List, Tuple, Union, Any
 
 from py2many.analysis import is_mutable, is_void_function
 from py2many.ast_helpers import create_ast_block, get_id
@@ -229,24 +229,73 @@ class KotlinTranspiler(CLikeTranspiler):
         buf.append("}")
         return "\n".join(buf)
 
-    def visit_Str(self, node) -> str:
-        return "" + super().visit_Str(node) + ""
+    def visit_Str(self, node: Union[ast.Constant, Any]) -> str:
+        """Handle string constants in Kotlin.
+        
+        Delegates to parent method which handles both old ast.Str and new ast.Constant.
+        Kotlin representation of strings is the same as base C-like transpiler.
+        
+        Args:
+            node: Either ast.Str (deprecated) or ast.Constant with string value
+            
+        Returns:
+            str: Kotlin string representation
+        """
+        return super().visit_Str(node)
 
-    def visit_Bytes(self, node) -> str:
-        bytes_str = f"{node.value}"  # replaced .s with .value
-        return bytes_str.replace("'", '"')  # replace single quote with double quote
+    def visit_Bytes(self, node: Union[ast.Constant, Any]) -> str:
+        """Handle byte constants in Kotlin.
+        
+        Extracts bytes value and converts to Kotlin ByteArray or string representation.
+        Handles both old ast.Bytes and new ast.Constant with bytes value.
+        
+        Args:
+            node: Either ast.Bytes (deprecated) or ast.Constant with bytes value
+            
+        Returns:
+            str: Kotlin bytes representation with quotes converted from single to double
+        """
+        # Extract bytes value, handling both old and new AST node types
+        bytes_value: bytes | None = None
+        if hasattr(node, 's'):  # Old ast.Bytes has 's' attribute
+            bytes_value = node.s
+        elif hasattr(node, 'value') and isinstance(node.value, bytes):
+            bytes_value = node.value
+        
+        if bytes_value is None:
+            # Delegate to parent for error handling
+            return super().visit_Bytes(node)
+        
+        # Render bytes and convert quotes for Kotlin
+        bytes_str = f"b\"{bytes_value.decode('latin-1')}\""
+        return bytes_str.replace("'", '"')
 
-    def visit_Name(self, node) -> str:
-        if node.id == "None":
-            return "None"
+    def visit_NameConstant(self, node: Union[ast.Constant, Any]) -> str:
+        """Handle None, True, False constants in Kotlin.
+        
+        Maps Python constants to Kotlin equivalents:
+        - None → null
+        - True/False → true/false
+        - Ellipsis → comment or error
+        
+        Args:
+            node: Either ast.NameConstant (deprecated) or ast.Constant with special value
+            
+        Returns:
+            str: Kotlin representation of the constant
+        """
+        # Extract value, handling both old and new AST node types
+        value = getattr(node, 'value', None)
+        
+        if value is None:
+            return "null"
+        elif isinstance(value, bool):
+            return "true" if value else "false"
+        elif value is Ellipsis:
+            return self.comment("...")
         else:
-            return super().visit_Name(node)
-
-    # def visit_NameConstant(self, node) -> str:
-    #     if node.value is None:
-    #         return "null"
-    #     else:
-    #         return super().visit_NameConstant(node)
+            # Delegate to parent for error handling
+            return super().visit_NameConstant(node)
 
     def _make_block(self, node):
         buf = ["if (true) {"]

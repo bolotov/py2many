@@ -31,6 +31,7 @@ import os
 import sys
 import tempfile
 import traceback
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from subprocess import run
@@ -61,7 +62,7 @@ from .language import LanguageSettings
 from py2many.transformers.mutability_transformer import detect_mutable_vars
 from py2many.transformers.nesting_transformer import detect_nesting_levels
 from py2many.transformers.raises_transformer import detect_raises
-from .registry import get_all_settings
+from .registry import get_all_settings, call_factory
 from .scope import add_scope_context
 from .__init__ import __version__
 
@@ -77,21 +78,25 @@ STDOUT = "-"
 CWD = Path.cwd()
 
 
-FAKE_ARGS = argparse.Namespace(
-    indent=4,
-    no_prologue=False,
-    extension=False,
-    suffix="",
-    comment_unsupported=False,
-    ignore_formatter_errors=False,
-    typpete=False,
-    version=False,
-    project=None,
-    llm=False,
-    llm_model=None,
-)
+DEFAULT_ARGS = {
+    "indent": 4,
+    "no_prologue": False,
+    "extension": False,
+    "suffix": "",
+    "comment_unsupported": False,
+    "ignore_formatter_errors": False,
+    "typpete": False,
+    "version": False,
+    "project": None,
+}
 
-LANGS = get_all_settings(FAKE_ARGS)
+# Create default arguments namespace for module-level initialization
+_DEFAULT_ARGS_NS = argparse.Namespace(**DEFAULT_ARGS)
+
+# Get language settings factories and instantiate with defaults
+_LANGS_FACTORIES = get_all_settings()
+LANGS = {lang: call_factory(factory, _DEFAULT_ARGS_NS) 
+         for lang, factory in _LANGS_FACTORIES.items()}
 
 
 # ------------------------------------------------------------------------------
@@ -443,16 +448,17 @@ def transpile_from_args(
     if language not in get_all_settings():
         raise ValueError(f"Unsupported language: {language}")
 
-    # settings_func = get_all_settings()[language]
-    # settings = settings_func(args)
-
-    settings = get_all_settings()[language](args)
+    # Get the factory for the requested language and instantiate it with runtime args
+    settings_factory = get_all_settings()[language]
+    settings = call_factory(settings_factory, args)
 
     if getattr(args, "comment_unsupported", False) or not getattr(args, "strict", True):
         settings.transpiler.set_continue_on_unimplemented()
 
-    settings.ignore_formatter_errors = getattr(
-        args, "ignore_formatter_errors", False
+    # Update settings immutably using dataclasses.replace()
+    settings = replace(
+        settings,
+        ignore_formatter_errors=getattr(args, "ignore_formatter_errors", False)
     )
 
     rest = getattr(args, "_rest", [])

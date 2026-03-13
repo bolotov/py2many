@@ -39,15 +39,12 @@ def infer_types(node) -> InferMeta:
 
 
 def infer_types_typpete(node) -> InferMeta:
-    """Infer types using Typpete and return metadata about the inference process."""
-    solver = TypesSolver(node)
-    context = Context(node, node.body, solver)
-    for stmt in node.body:
-        infer_types_ast(stmt, context, solver)
-
-    solver.push()
-
-    return InferMeta(True)
+    """Infer types using Typpete and return metadata about the inference process.
+    
+    Note: Typpete is temporarily unavailable. Falls back to standard type inference.
+    """
+    # Typpete was temporarily removed; fallback to standard type inference
+    return infer_types(node)
 
 
 def get_inferred_type(node):

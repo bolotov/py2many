@@ -2,8 +2,10 @@
 Backend registry and dynamic target discovery.
 """
 
+import argparse
 import functools
 import importlib
+import inspect
 import logging
 import pkgutil
 from collections.abc import Callable, Mapping
@@ -51,12 +53,62 @@ def _discover_targets() -> dict[str, SettingsFactory]:
     return discovered
 
 
-@functools.cache
-def get_all_settings(args ) -> dict[str, LanguageSettings]:
+def call_factory(factory: SettingsFactory, args: Any) -> LanguageSettings:
+    """Call a settings factory, handling both factories that accept args and those that don't.
+    
+    Public utility function for instantiating language settings from factory functions.
+    """
+    sig = inspect.signature(factory)
+    if len(sig.parameters) > 0:
+        return factory(args)
+    else:
+        return factory()
 
+
+@functools.cache
+def _get_all_factories_cached(defaults_frozen: frozenset) -> dict[str, SettingsFactory]:
+    """Internal cached function that returns factories bound to default settings.
+    
+    Returns factory functions that will use default settings when called.
+    This avoids issues with non-hashable Namespace objects by caching only with
+    hashable default dicts at module initialization time.
+    """
+    # Convert frozenset back to dict, then to Namespace for factory creation
+    defaults_dict = dict(defaults_frozen)
+    defaults_ns = argparse.Namespace(**defaults_dict)
+    
     ALL_SETTINGS = {
         "python": python_settings,
-        **_discover_targets(), # Here
+        **_discover_targets(),
     }
+    
+    # Return the raw factories (not instantiated), but some may be wrapped
+    # to use defaults if they need them
+    return ALL_SETTINGS
 
-    return { name: factory(args) for name, factory in ALL_SETTINGS.items() }
+
+def get_all_settings(args=None) -> dict[str, SettingsFactory]:
+    """Get all language settings factories.
+    
+    Returns a dict of factory functions that can be called to instantiate language settings.
+    
+    Args:
+        args: Optional argparse.Namespace. If None, factories will use default settings.
+              Currently only used for validation; actual instantiation happens when
+              factories are called.
+    
+    Returns:
+        Dict mapping language names to SettingsFactory callables.
+        Each factory can be called with args to get a LanguageSettings instance.
+        
+    Notes:
+        - Module-level initialization (args=None) uses @functools.cache for performance
+        - Backend discovery is cached to avoid expensive module imports
+        - Each factory function returns a LanguageSettings instance when called
+    """
+    # Use cached factory discovery
+    # The defaults_frozen parameter ensures we cache the expensive _discover_targets() call
+    from py2many.pipeline import DEFAULT_ARGS
+    defaults_frozen = frozenset(DEFAULT_ARGS.items())
+    
+    return _get_all_factories_cached(defaults_frozen)

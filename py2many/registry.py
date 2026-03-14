@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 import targets
+from py2many.defaults import DEFAULTS
 from py2many.language import LanguageSettings
 from py2many.rewriters.inferred_ann_assign import InferredAnnAssignRewriter
 from py2many.transformers.python_transformer import PythonTranspiler, RestoreMainRewriter
@@ -20,7 +21,8 @@ log = logging.getLogger(__name__)
 
 SettingsFactory = Callable[[Any, Mapping[str, str] | None], LanguageSettings]
 
-def python_settings(args) -> LanguageSettings:
+def python_settings(args: argparse.Namespace | None) -> LanguageSettings:
+    # FIXME: TODO: extract into <root>/targets/python/__init__.py
     return LanguageSettings(
         transpiler=PythonTranspiler(args.no_prologue),
         ext=",py",
@@ -53,7 +55,7 @@ def _discover_targets() -> dict[str, SettingsFactory]:
     return discovered
 
 
-def call_factory(factory: SettingsFactory, args: Any) -> LanguageSettings:
+def call_factory(factory: SettingsFactory, args: argparse.Namespace | None) -> LanguageSettings:
     """Call a settings factory, handling both factories that accept args and those that don't.
     
     Public utility function for instantiating language settings from factory functions.
@@ -66,7 +68,7 @@ def call_factory(factory: SettingsFactory, args: Any) -> LanguageSettings:
 
 
 @functools.cache
-def _get_all_factories_cached(defaults_frozen: frozenset) -> dict[str, SettingsFactory]:
+def _get_all_factories_cached(defaults_frozen: frozenset[tuple[str, str]]) -> dict[str, SettingsFactory]:
     """Internal cached function that returns factories bound to default settings.
     
     Returns factory functions that will use default settings when called.
@@ -74,20 +76,18 @@ def _get_all_factories_cached(defaults_frozen: frozenset) -> dict[str, SettingsF
     hashable default dicts at module initialization time.
     """
     # Convert frozenset back to dict, then to Namespace for factory creation
-    defaults_dict = dict(defaults_frozen)
+    defaults_dict : dict[str, Any] = dict(defaults_frozen)
     defaults_ns = argparse.Namespace(**defaults_dict)
     
-    ALL_SETTINGS = {
-        "python": python_settings,
-        **_discover_targets(),
-    }
+ 
     
     # Return the raw factories (not instantiated), but some may be wrapped
     # to use defaults if they need them
-    return ALL_SETTINGS
+    return { "python": python_settings, **_discover_targets(), }
+    
 
 
-def get_all_settings(args=None) -> dict[str, SettingsFactory]:
+def get_all_settings(args: argparse.Namespace | None = None) -> dict[str, SettingsFactory]:
     """Get all language settings factories.
     
     Returns a dict of factory functions that can be called to instantiate language settings.
@@ -108,7 +108,6 @@ def get_all_settings(args=None) -> dict[str, SettingsFactory]:
     """
     # Use cached factory discovery
     # The defaults_frozen parameter ensures we cache the expensive _discover_targets() call
-    from py2many.pipeline import DEFAULT_ARGS
-    defaults_frozen = frozenset(DEFAULT_ARGS.items())
+    defaults_frozen = frozenset(DEFAULTS.items())
     
     return _get_all_factories_cached(defaults_frozen)

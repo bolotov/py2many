@@ -55,7 +55,7 @@ go_keywords = frozenset(
 go_symbols = {ast.BitAnd: "&&", ast.BitOr: "||", ast.BitXor: "!="}
 
 
-def go_symbol(node):
+def go_symbol(node: ast.AST) -> str:
     """Find the equivalent Go symbol for a Python ast symbol node"""
     symbol_type = type(node)
     return go_symbols[symbol_type]
@@ -67,18 +67,18 @@ class CLikeTranspiler(CommonCLikeTranspiler):
         CommonCLikeTranspiler._type_map = GO_TYPE_MAP
         CLikeTranspiler._container_type_map = GO_CONTAINER_TYPE_MAP
 
-    def visit(self, node) -> str:
+    def visit(self, node: ast.AST) -> str:
         if type(node) in go_symbols:
             return go_symbol(node)
         else:
             return super().visit(node)
 
-    def visit_Name(self, node) -> str:
+    def visit_Name(self, node: ast.Name) -> str:
         if node.id in go_keywords:
             return node.id + "_"
         return super().visit_Name(node)
 
-    def visit_BinOp(self, node) -> str:
+    def visit_BinOp(self, node: ast.BinOp) -> str:
         if isinstance(node.op, ast.Pow):
             self._usings.add('"math"')
             return "math.Pow({}, {})".format(
@@ -107,7 +107,7 @@ class CLikeTranspiler(CommonCLikeTranspiler):
         else:
             return f"({left} {op} {right})"
 
-    def visit_In(self, node) -> str:
+    def visit_In(self, node: ast.In) -> str:
         self._usings.add('"github.com/electrious/refutil"')
         element = self.visit(node.left)
         container = node.comparators[0]
@@ -126,7 +126,7 @@ class CLikeTranspiler(CommonCLikeTranspiler):
             slice_value = [self._recursive_expand(e) for e in slice_value.elts]
         return slice_value
 
-    def _typename_from_annotation(self, node, attr="annotation") -> str:
+    def _typename_from_annotation(self, node: ast.AST, attr="annotation") -> str:
         if hasattr(node, attr):
             typename = getattr(node, attr)
             if isinstance(typename, ast.Subscript):

@@ -7,6 +7,8 @@ import os  # noqa: F401
 import random  # noqa: F401
 import sys
 import time  # noqa: F401
+
+# importing primitive types for type mapping
 from ctypes import c_int16 as i16
 from ctypes import c_int32 as i32
 from ctypes import c_int64 as i64
@@ -16,6 +18,7 @@ from ctypes import c_uint16 as u16
 from ctypes import c_uint32 as u32
 from ctypes import c_uint64 as u64
 from ctypes import c_uint8 as u8
+
 from typing import (  # noqa: F401
     Any,
     Callable,
@@ -42,8 +45,7 @@ from py2many.exceptions import (
 )
 from py2many.utilities.logger import setup_logger, LoggerConfig
 
-# from py2many.result import Result  # noqa: F401
-
+# primitive typesa and their aliases for C-like languages
 ilong = i64
 ulong = u64
 isize = i64
@@ -57,7 +59,8 @@ c_uint16 = u16
 c_uint32 = u32
 c_uint64 = u64
 
-symbols = {
+# Symbols of operators and boolean/null constants for C-like languages
+symbols: Dict[Type[ast.AST], str] = {
     ast.Eq: "==",
     ast.Is: "==",
     ast.NotEq: "!=",
@@ -84,7 +87,6 @@ symbols = {
     ast.In: "in",
 }
 
-
 _AUTO = "auto"
 _AUTO_INVOKED = "auto()"
 
@@ -103,12 +105,13 @@ _bridge_log = setup_logger(LoggerConfig(name="py2many.bridge"))
 
 
 
+"""
 def class_for_typename(
-        typename: Optional[list[str]| str],
-        default_type,
-        localns: Optional[Mapping[str, Any]] = None,
-) -> Optional[Union[str, object]]:
-    """
+        typename: str | None,
+        default_type: str| None = None,
+        localns: Mapping[str, Any] | None = None,
+) -> Union[str, object] | None:
+
     Resolve a type annotation string into a Python object.
 
     The function attempts to evaluate `typename` in the current global
@@ -125,7 +128,9 @@ def class_for_typename(
         - a module attribute
         - `default_type`
         - None (for unsupported constructs like `super`)
-    """
+    
+        
+
     if typename is None:
         return None
 
@@ -148,6 +153,62 @@ def class_for_typename(
     except (NameError, SyntaxError, AttributeError, TypeError) as exc:
         logger.debug("Could not evaluate typename '%s': %s", typename, exc)
         return default_type
+"""
+
+
+# Variant of class_for_typename below is more robust to non-type
+# annotations and doesn't attempt to evaluate them.
+
+# if use ForwardRef for  class_for_typename and handle string
+# annotations with it, we can avoid the need for eval and the
+# associated risks and limitations. This would allow us to
+# resolve type names without executing arbitrary code, and
+# also handle cases where the annotation is not a valid Python
+# expression (e.g., "List[int]") more gracefully.
+
+# if we will use typing.get_type_hints in the future, it already handles string annotations and forward references, so we might not need a custom solution at all. We can just rely on get_type_hints to resolve type annotations correctly, including those that are strings or forward references. This would simplify our code and make it more robust without needing to implement our own resolution logic.
+
+
+def class_for_typename(
+        typename: str | None,
+        default_type: Any = None,
+        localns: Mapping[str, Any] | None = None,
+) -> Union[str, object] | None:
+    
+    if not typename or typename.startswith("super"):
+        return None
+
+    resolved = None
+    try:
+        # Пошук у локальних або глобальних іменах
+        if localns and typename in localns:
+            resolved = localns[typename]
+        elif typename in globals():
+            resolved = globals()[typename]
+        else:
+            # Спроба завантажити як повний шлях до класу
+            import pydoc
+            resolved = pydoc.locate(typename)
+
+        if resolved is None:
+            return default_type
+
+        # Логіка обробки bound methods та об'єктів (з вашого оригіналу)
+        if hasattr(resolved, "__self__") and not isinstance(resolved.__self__, type(sys)):
+            return getattr(resolved.__self__.__class__, resolved.__name__)
+
+        # Якщо це не клас і не функція, повертаємо його тип
+        if not callable(resolved) and not isinstance(resolved, type):
+            return type(resolved)
+
+        return resolved
+
+    except Exception as exc:
+        logger.debug("Could not resolve typename '%s': %s", typename, exc)
+        return default_type
+    
+
+
 
 
 
@@ -282,7 +343,7 @@ class CLikeTranspiler(ast.NodeVisitor):
     """Return the module name to use for an extension build, if applicable."""
 
     @staticmethod
-    def comment(text) -> str: return f"/* {text} */"
+    def comment(text: str) -> str: return f"/* {text} */"
     """Return a comment string for the target language."""
 
     @staticmethod
@@ -377,7 +438,7 @@ class CLikeTranspiler(ast.NodeVisitor):
     def _combine_value_index(cls, value_type, index_type) -> str:
         """
         Combine a value type and an index type into a single string representation for container types.
-        For example, if we have a value type of "List" and an index type of "int",
+        Example: for a value type of "List" and an index type of "int",
         this method might return "List<int>" for a language like C++ or "Vec<i32>" for Rust.
         """
         return f"{value_type}<{index_type}>"
@@ -543,7 +604,7 @@ class CLikeTranspiler(ast.NodeVisitor):
     @classmethod
     def _generic_typename_from_annotation(
             cls, node, attr="annotation"
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Unlike the one above, this doesn't do any target specific mapping.
         """
@@ -632,8 +693,6 @@ class CLikeTranspiler(ast.NodeVisitor):
         return node.name, node.asname
 
 
-
-
     def _import_from(
             self, module_name: str, names: List[str], level: int = 0
     ): ...
@@ -660,7 +719,7 @@ class CLikeTranspiler(ast.NodeVisitor):
         Returns:
             str: A string containing import statements in the target language.
         """
-        def process(a):
+        def process(a: ast.alias) -> str:
             """Process an import alias node."""
             if a.name in self._ignored_module_set: return ""
             if a.asname:
@@ -720,6 +779,8 @@ class CLikeTranspiler(ast.NodeVisitor):
             return node.id.lower()
         return node.id
 
+    # MARK: - constants
+
     def visit_Constant(self, node: ast.Constant) -> str:
         value = node.value
 
@@ -751,7 +812,7 @@ class CLikeTranspiler(ast.NodeVisitor):
 
             case _:
                 raise AstNotImplementedError(
-                    msg=f"Unsupported constant type: {type(value).__name__}",
+                    msg=f"Unsupported constant type: -> {type(value).__name__} <-",
                     node=node
                 ) # msg, node <-- correct parameters
 
@@ -848,7 +909,6 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     def render_ellipsis(self) -> str:
         return self.comment("...")
-
 
 
     @staticmethod
@@ -1369,7 +1429,7 @@ class CLikeTranspiler(ast.NodeVisitor):
 
     # MARK: - Class definition handling
 
-    def visit_ClassDef(self, node):
+    def visit_ClassDef(self, node: ast.ClassDef) -> Optional[str]:
         """
         Visit a class definition node.
         This method handles the translation of class definitions

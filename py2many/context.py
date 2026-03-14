@@ -3,17 +3,17 @@ import ast
 from .scope import ScopeMixin
 
 
-def add_list_calls(node):
+def add_list_calls(node: ast.AST) -> ast.AST:
     """Provide context to Module and Function Def"""
     return ListCallTransformer().visit(node)
 
 
-def add_variable_context(node, trees):
+def add_variable_context(node: ast.AST, trees: list[ast.AST]) -> ast.AST:
     """Provide context to Module and Function Def"""
     return VariableTransformer(trees).visit(node)
 
 
-def add_assignment_context(node):
+def add_assignment_context(node: ast.AST) -> ast.AST:
     """Annotate nodes on the LHS of an assigment"""
     return LHSAnnotationTransformer().visit(node)
 
@@ -24,7 +24,8 @@ class ListCallTransformer(ast.NodeTransformer):
     You need to apply VariableTransformer before you use it.
     """
 
-    def visit_Call(self, node):
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        """Annotate calls to list with context of the list variable"""
         if self.is_list_addition(node):
             var = node.scopes.find(node.func.value.id)
             if var is not None and self.is_list_assignment(var.assigned_from):
@@ -35,6 +36,7 @@ class ListCallTransformer(ast.NodeTransformer):
 
     @staticmethod
     def is_list_assignment(node):
+        """Check if variable is assigned to a list"""
         return (
             hasattr(node, "value")
             and isinstance(node.value, ast.List)
@@ -66,7 +68,7 @@ class VariableTransformer(ast.NodeTransformer, ScopeMixin):
         else:
             self._trees = {t.__file__.stem: t for t in trees}
 
-    def visit_FunctionDef(self, node):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
         node.vars = []
         # So function signatures are accessible even after they're
         # popped from the scope
@@ -77,7 +79,7 @@ class VariableTransformer(ast.NodeTransformer, ScopeMixin):
         self.generic_visit(node)
         return node
 
-    def visit_ClassDef(self, node):
+    def visit_ClassDef(self, node: ast.ClassDef) -> ast.AST:
         node.vars = []
         # So classes are accessible even after they're
         # popped from the scope
@@ -85,12 +87,12 @@ class VariableTransformer(ast.NodeTransformer, ScopeMixin):
         self.generic_visit(node)
         return node
 
-    def visit_Import(self, node):
+    def visit_Import(self, node: ast.Import) -> ast.AST:
         for name in node.names:
             name.imported_from = node
         return node
 
-    def visit_ImportFrom(self, node):
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.AST:
         module_path = node.module
         names = [n.name for n in node.names]
         if module_path in self._trees:
@@ -99,7 +101,7 @@ class VariableTransformer(ast.NodeTransformer, ScopeMixin):
             node.scopes[-1].vars += resolved_names
         return node
 
-    def visit_If(self, node):
+    def visit_If(self, node: ast.If) -> ast.AST:
         node.vars = []
         self.visit(node.test)
         for e in node.body:

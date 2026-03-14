@@ -15,7 +15,7 @@ _SCOPE_TYPES = (
 )
 
 
-def add_scope_context(node): return ScopeTransformer().visit(node)
+def add_scope_context(node: ast.AST): return ScopeTransformer().visit(node)
 """Provide to scope context to all nodes"""
 
 
@@ -33,7 +33,7 @@ class ScopeMixin:
         self.scopes = []
 
     @contextmanager
-    def enter_scope(self, node):
+    def enter_scope(self, node: ast.AST):
         """Context manager for entering a new scope."""
 
         # Only push nodes that actually introduce scopes.
@@ -71,7 +71,7 @@ class ScopeList(list):
                 return var
         return None
 
-    def find(self, lookup):
+    def find(self, lookup: str) -> ast.AST | None:
         """Find definition of variable lookup."""
 
         # Attributes expected from earlier analysis passes.
@@ -121,7 +121,7 @@ class ScopeTransformer(ast.NodeTransformer, ScopeMixin):
         ast.NodeTransformer.__init__(self)
         ScopeMixin.__init__(self)
 
-    def visit(self, node):
+    def visit(self, node:ast.AST) -> ast.AST:
         """Override visit to ensure every node gets a scope attribute, even if it's None."""
         with self.enter_scope(node):
 

@@ -125,7 +125,7 @@ def create_ast_node(code: str, at_node: ast.AST | None = None) -> ast.AST:
     return new_node
 
 
-def create_ast_block(body, at_node=None) -> ASTxIf:
+def create_ast_block(body, at_node: ast.AST | None = None) -> ASTxIf:
     """
     Create a synthetic block node containing the provided statements.
 

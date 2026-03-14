@@ -19,7 +19,7 @@ from py2many.pipeline import (
 )
 from py2many.cli import main
 
-from py2many.process_helpers import find_executable
+from py2many.utilities.find_executable import find_executable
 
 try:
     from targets.cpp import _conan_include_args

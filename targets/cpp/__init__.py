@@ -5,13 +5,14 @@ Defines the `settings()` function that returns a configured LanguageSettings
 object used for transpiling Python code to C++.
 """
 
+import argparse
 import os
 import pathlib
 import sys
-from typing import Tuple
+from typing import Tuple, Mapping
 
 from py2many.language import LanguageSettings
-from py2many.process_helpers import find_executable
+from py2many.utilities.find_executable import find_executable
 from .transpiler import CppListComparisonRewriter, CppTranspiler
 
 # Constants for Conan include detection
@@ -42,7 +43,7 @@ def _conan_include_args() -> Tuple[str, ...]:
     )
 
 
-def settings(args, env=os.environ) -> LanguageSettings:
+def settings(args: argparse.Namespace | None, env: Mapping[str, str]=os.environ) -> LanguageSettings:
     """
     Configure C++ backend with formatter, rewriters, linter, etc.
 

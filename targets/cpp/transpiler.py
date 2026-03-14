@@ -66,12 +66,12 @@ def transpile(source, headers=False, testing=False):
     return "\n".join(buf) + cpp
 
 
-def generate_catch_test_case(node, body):
+def generate_catch_test_case(node: ast.FunctionDef, body: str):
     funcdef = f'TEST_CASE("{node.name}")'
     return funcdef + " {\n" + body + "\n}"
 
 
-def generate_lambda_fun(node, body):
+def generate_lambda_fun(node: ast.Lambda, body: str):
     params = [f"auto {param.id}" for param in node.args.args]
     funcdef = "auto {} = []({})".format(node.name, ", ".join(params))
     return funcdef + " {\n" + body + "\n};"
@@ -144,7 +144,7 @@ class CppTranspiler(CLikeTranspiler):
             self._headers.append("#include <stdint.h>")
         return "\n".join([f"{line}{lint_exception}" for line in self._headers])
 
-    def visit_FunctionDef(self, node) -> str:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> str:
         body = "\n".join([self.visit(n) for n in node.body])
         # If rewriter inserted a block, we need to terminate it with a semicolon
         if len(node.body):
@@ -203,10 +203,10 @@ class CppTranspiler(CLikeTranspiler):
 
         return funcdef + "\n" + body + "}\n"
 
-    def visit_Global(self, node) -> str:
+    def visit_Global(self, node: ast.Global) -> str:
         return ""
 
-    def visit_Attribute(self, node) -> str:
+    def visit_Attribute(self, node: ast.Attribute) -> str:
         attr = node.attr
         value_id = self.visit(node.value)
 
@@ -233,7 +233,7 @@ class CppTranspiler(CLikeTranspiler):
 
         return ret
 
-    def visit_ClassDef(self, node) -> str:
+    def visit_ClassDef(self, node: ast.ClassDef) -> str | None:
         extractor = DeclarationExtractor(CppTranspiler())
         extractor.visit(node)
         declarations = node.declarations = extractor.get_declarations()

@@ -7,4 +7,6 @@ rm ./*.nim
 rm ./*.zig
 rm ./*.cpp
 rm ./*.d
+rm ./*.go
+rm ./*,py
 

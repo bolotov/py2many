@@ -36,7 +36,7 @@ from py2many.pipeline import (
     _transpile_one,
 )
 from py2many.exceptions import AstIncompatibleAssign
-from py2many.process_helpers import find_executable
+from py2many.utilities.find_executable import find_executable
 
 LANGS = set(_LANGS) - {"python", "smt"}
 

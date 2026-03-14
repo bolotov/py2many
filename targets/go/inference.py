@@ -13,7 +13,7 @@ from ctypes import (
 from py2many.ast_helpers import get_id
 from py2many.inference import InferTypesTransformer, LanguageInferenceBase
 
-GO_TYPE_MAP = {
+GO_TYPE_MAP: dict[type, str] = {
     bool: "bool",
     int: "int",
     float: "float64",
@@ -29,7 +29,12 @@ GO_TYPE_MAP = {
     c_uint64: "uint64",
 }
 
-GO_CONTAINER_TYPE_MAP = {"List": "[]", "Dict": None, "Set": None, "Optional": "nil"}
+GO_CONTAINER_TYPE_MAP: dict[str, str|None] = {
+    "List": "[]",
+    "Dict": None,
+    "Set": None,
+    "Optional": "nil"
+}
 
 GO_WIDTH_RANK = {
     "bool": 0,
@@ -52,17 +57,17 @@ class GoInference(LanguageInferenceBase):
     WIDTH_RANK = GO_WIDTH_RANK
 
 
-def get_inferred_go_type(node):
+def get_inferred_go_type(node: ast.AST):
     return GoInference.get_inferred_language_type(node, "go_annotation")
 
 
 class InferGoTypesTransformer(InferTypesTransformer):
     """Implements go type inference logic as opposed to python type inference logic"""
 
-    def _handle_overflow(self, op, left_id, right_id):
+    def _handle_overflow(self, op, left_id, right_id) -> str:
         return GoInference.handle_overflow(op, left_id, right_id)
 
-    def visit_BinOp(self, node):
+    def visit_BinOp(self, node: ast.BinOp) -> ast.AST:
         self.generic_visit(node)
 
         if isinstance(node.left, ast.Name):
@@ -98,6 +103,6 @@ class InferGoTypesTransformer(InferTypesTransformer):
         return node
 
 
-def infer_go_types(node):
+def infer_go_types(node: ast.AST):
     visitor = InferGoTypesTransformer()
     visitor.visit(node)

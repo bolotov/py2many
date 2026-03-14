@@ -147,18 +147,18 @@ class CLikeTranspiler(CommonCLikeTranspiler):
         self._container_type_map = self.CONTAINER_TYPE_MAP
 
     @staticmethod
-    def _check_keyword(name):
+    def _check_keyword(name: str) -> tuple[str, bool]:
         if name in cpp_keywords:
             return name + "_", True
         return name, False
 
-    def visit_Name(self, node) -> str:
+    def visit_Name(self, node: ast.Name) -> str:
         node_id, changed = self._check_keyword(node.id)
         if changed:
             return node_id
         return super().visit_Name(node)
 
-    def visit_BinOp(self, node) -> str:
+    def visit_BinOp(self, node: ast.BinOp) -> str:
         if isinstance(node.op, ast.Pow):
             self._usings.add("<cmath>")
             return "std::pow({}, {})".format(

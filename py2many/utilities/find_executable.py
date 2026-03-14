@@ -3,7 +3,7 @@ import sys
 
 
 # Copy of distutils.spawn, removed in Python 3.12
-def find_executable(executable, path=None):
+def find_executable(executable: str, path: str | None = None) -> str | None:
     """Tries to find 'executable' in the directories listed in 'path'.
 
     A string listing directories separated by 'os.pathsep'; defaults to

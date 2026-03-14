@@ -2,12 +2,12 @@ import ast
 from collections import defaultdict
 from graphlib import TopologicalSorter
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple, Dict, FrozenSet, Generator
 
 
 def module_for_path(path: Path) -> str:
     """Convert file Path to Python dotted module name (without .py extension).
-    
+
     Examples:
         >>> from pathlib import Path
         >>> module_for_path(Path('src/pkg/mod.py'))
@@ -16,10 +16,10 @@ def module_for_path(path: Path) -> str:
         'mod'
         >>> module_for_path(Path('/a/b/c.py'))
         '/a/b/c'
-    
+
     Args:
         path: Path to Python source file
-        
+
     Returns:
         Dotted module name (dir1.dir2.mod)
     """
@@ -30,27 +30,28 @@ def module_for_path(path: Path) -> str:
 
 class ImportDependencyVisitor(ast.NodeVisitor):
     """AST visitor that extracts Python import dependencies between modules.
-    
+
     Only tracks imports from known project modules (filtered by modules set).
-    Builds graph where deps[current_module] = set(imported_modules).
-    
+    Builds graph where deps[current_module] = frozenset(imported_modules).
+
     Example:
         >>> import ast
         >>> tree = ast.parse("from . import foo\\nimport bar")
         >>> tree.__file__ = "pkg/mod.py"
         >>> visitor = ImportDependencyVisitor({'pkg.foo', 'bar'})
         >>> visitor.visit(tree)
-        >>> list(visitor.deps['pkg.mod'])
-        ['pkg.foo', 'bar']
+        >>> visitor.deps['pkg.mod']
+        frozenset({'pkg.foo', 'bar'})
     """
-    def __init__(self, modules):
+    def __init__(self, project_modules: FrozenSet[str]):
         """
         Args:
-            modules: Set of known module names to track
+            project_modules: Frozen set of known module names to track (immutable)
         """
-        self.deps = defaultdict(set)
-        self._modules = modules
+        self.deps: Dict[str, FrozenSet[str]] = {}
+        self._project_modules = project_modules
         self._current: str = ""
+        self._pending_deps: Dict[str, set[str]] = defaultdict(set)
 
     def visit_Module(self, node):
         """Track current module when entering module node."""
@@ -59,51 +60,62 @@ class ImportDependencyVisitor(ast.NodeVisitor):
 
     def visit_ImportFrom(self, node):
         """Capture 'from module import ...' dependencies."""
-        if node.module and node.module in self._modules:
-            self.deps[self._current].add(node.module)
+        if node.module and node.module in self._project_modules:
+            self._pending_deps[self._current].add(node.module)
         self.generic_visit(node)
 
     def visit_Import(self, node):
         """Capture 'import module' dependencies."""
-        names = [n.name for n in node.names]
-        for n in names:
-            if n in self._modules:
-                self.deps[self._current].add(n)
+        for alias in node.names:
+            if alias.name in self._project_modules:
+                self._pending_deps[self._current].add(alias.name)
         self.generic_visit(node)
+    
+    def finalize(self) -> Dict[str, FrozenSet[str]]:
+        """Convert mutable deps to immutable frozensets for all modules."""
+        # Ensure all project modules are in the deps dict
+        result = {}
+        for module in self._project_modules:
+            result[module] = frozenset(self._pending_deps.get(module, set()))
+        return result
 
 
-def get_dependencies(trees):
+def get_dependencies(trees: Tuple[ast.AST, ...]) -> Dict[str, FrozenSet[str]]:
     """Extract complete dependency graph from list of Python AST trees.
-    
-    Ensures every module appears in deps graph (empty set if no deps).
-    
+
+    Ensures every project module appears in deps graph (empty frozenset if no deps).
+    Only includes modules from the trees being transpiled - ignores sys.modules.
+
     Args:
         trees: List of ast.Module nodes with __file__ attribute set
-        
+
     Returns:
-        Dict[module_name, set(dependencies)] - graph where keys depend ON values
-        
+        Dict[module_name, frozenset(dependencies)] - immutable graph 
+        where keys depend ON values. Only includes project modules.
+
     Example:
         >>> import ast
         >>> t1 = ast.parse("from foo import x"); t1.__file__ = "a.py"
-        >>> t2 = ast.parse("pass"); t2.__file__ = "foo.py" 
-        >>> deps = get_dependencies([t1, t2])
+        >>> t2 = ast.parse("pass"); t2.__file__ = "foo.py"
+        >>> deps = get_dependencies((t1, t2))
         >>> deps['a']
-        {'foo'}
+        frozenset({'foo'})
         >>> deps['foo']
-        set()
+        frozenset()
     """
-    modules = {module_for_path(Path(node.__file__)) for node in trees}
-    visitor = ImportDependencyVisitor(modules)
-    for t in trees:
-        visitor.visit(t)
-    for m in modules:
-        if m not in visitor.deps:
-            visitor.deps[m] = set()
-    return visitor.deps
+    # Extract module names from trees - only track these modules
+    project_modules = frozenset(module_for_path(Path(node.__file__)) for node in trees)
+    
+    # Visit AST trees to find dependencies
+    visitor = ImportDependencyVisitor(project_modules)
+    for tree in trees:
+        visitor.visit(tree)
+    
+    # Return immutable dependency graph for only project modules
+    return visitor.finalize()
 
 
-class StableTopologicalSorter(TopologicalSorter):
+class StableTopologicalSorter(TopologicalSorter[str]):
     """Topological sorter that yields nodes in stable lexicographical order.
     
     Unlike base TopologicalSorter, groups ready nodes and sorts them before yielding.
@@ -116,7 +128,8 @@ class StableTopologicalSorter(TopologicalSorter):
         >>> tuple(ts.static_order())
         ('c', 'b', 'a')
     """
-    def static_order(self):
+
+    def static_order(self) -> Generator[str]:
         """Yield nodes in topological order, sorting ready batches lexicographically.
         
         Yields:
@@ -129,7 +142,7 @@ class StableTopologicalSorter(TopologicalSorter):
             self.done(*node_group)
 
 
-def toposort(trees) -> Tuple:
+def toposort(trees: Tuple[ast.AST, ...]) -> Tuple[ast.AST, ...]:
     """Complete pipeline: extract deps -> toposort -> return ordered trees.
     
     Prerequisites:
@@ -153,6 +166,8 @@ def toposort(trees) -> Tuple:
         'bar'
     """
     deps = get_dependencies(trees)
-    tree_dict = {module_for_path(Path(node.__file__)): node for node in trees}
+    tree_dict = {
+        module_for_path(Path(node.__file__)):node for node in trees
+    }
     ts = StableTopologicalSorter(deps)
-    return tuple([tree_dict[t] for t in ts.static_order()])
+    return tuple(tree_dict[t] for t in ts.static_order())

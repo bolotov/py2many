@@ -1,10 +1,11 @@
+import ast
 import functools
 import sys
 from typing import Callable, Dict, List, Tuple, Union
 
 
 class GoTranspilerPlugins:
-    def visit_range(self, node, vargs: List[str]) -> str:
+    def visit_range(self, node: ast.AST, vargs: List[str]) -> str:
         self._usings.add('iter "github.com/hgfischer/go-iter"')
         if len(node.args) == 1:
             return f"iter.NewIntSeq(iter.Start(0), iter.Stop({vargs[0]})).All()"
@@ -41,17 +42,17 @@ class GoTranspilerPlugins:
                 return "0.0"
         return f"{cast_to}({vargs[0]})"
 
-    def visit_floor(self, node, vargs) -> str:
+    def visit_floor(self, node, vargs: List[str]) -> str:
         self._usings.add('"math"')
         return f"math.Floor({vargs[0]})"
 
-    def visit_exit(self, node, vargs) -> str:
+    def visit_exit(self, node: ast.AST, vargs: List[str]) -> str:
         self._usings.add('"os"')
         return f"os.Exit({vargs[0]})"
 
 
 # small one liners are inlined here as lambdas
-SMALL_DISPATCH_MAP = {
+SMALL_DISPATCH_MAP: Dict[str, Callable[[ast.AST, List[str]], str]] = {
     "str": lambda n, vargs: f"String({vargs[0]})" if vargs else '""',
     "int": lambda n, vargs: f"int({vargs[0]})" if vargs else "0",
     "bool": lambda n, vargs: f"({vargs[0]} != 0)" if vargs else "false",
@@ -60,7 +61,7 @@ SMALL_DISPATCH_MAP = {
 
 SMALL_USINGS_MAP: Dict[str, str] = {}
 
-DISPATCH_MAP = {
+DISPATCH_MAP: Dict[str, Callable] = {
     "max": functools.partial(GoTranspilerPlugins.visit_min_max, is_max=True),
     "min": functools.partial(GoTranspilerPlugins.visit_min_max, is_max=False),
     "range": GoTranspilerPlugins.visit_range,
@@ -78,8 +79,8 @@ CLASS_DISPATCH_TABLE = {}
 
 ATTR_DISPATCH_TABLE = {}
 
-FuncType = Union[Callable, str]
+FuncType = Union[Callable[..., object], str]
 
-FUNC_DISPATCH_TABLE: Dict[FuncType, Tuple[Callable, bool]] = {
+FUNC_DISPATCH_TABLE: Dict[object, Tuple[Callable[[GoTranspilerPlugins, ast.AST, List[str]], str], bool]] = {
     sys.exit: (GoTranspilerPlugins.visit_exit, True),
 }

@@ -5,14 +5,17 @@ from py2many.ast_helpers import create_ast_block, get_id
 
 class IgnoredAssignRewriter(ast.NodeTransformer):
     """ Rewrites destructuring assignments with ignored variables
-     (e.g. a, _, c = foo()) into separate assignments for the non-ignored
-      variables, since some languages don't support ignored variables
-       in destructuring assignments. Only rewrites if there are ignored
-       variables in the destructuring assignment, since otherwise
-        there's nothing to rewrite.
-     Also does not rewrite if the language supports ignored variables in
-     destructuring assignments, since in those cases it's better to keep
-     the original destructuring assignment, which is more concise and readable.
+    (e.g. a, _, c = foo()) into separate assignments for the non-ignored
+     variables, since some languages don't support ignored variables
+    in destructuring assignments.
+
+    Only rewrites if there are ignored
+    variables in the destructuring assignment, since otherwise
+    there's nothing to rewrite.
+
+    Also does not rewrite if the language supports ignored variables in
+    destructuring assignments, since in those cases it's better to keep
+    the original destructuring assignment, which is more concise and readable.
     """
     def __init__(self, language):
         super().__init__()

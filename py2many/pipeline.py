@@ -27,6 +27,7 @@ code generation are intentionally preserved.
 import argparse
 import ast
 import hashlib
+import inspect
 import os
 import sys
 import tempfile
@@ -37,6 +38,7 @@ from pathlib import Path
 from subprocess import run
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
+from py2many.defaults import DEFAULTS
 from py2many.rewriters import (
     ComplexDestructuringRewriter,
     DocStringToCommentRewriter,
@@ -49,23 +51,22 @@ from py2many.rewriters import (
     UnpackScopeRewriter,
     WithToBlockTransformer,
 )
-
-from py2many.utilities.toposort_modules import toposort
+from py2many.transformers import (
+    add_annotation_flags,
+    detect_mutable_vars,
+    detect_nesting_levels,
+    detect_raises
+)
 from py2many.utilities.logger import setup_logger, LogLevel, LoggerConfig
-
+from py2many.utilities.toposort_modules import toposort
+from .__init__ import __version__
 from .analysis import add_imports
-from py2many.transformers.annotation_transformer import add_annotation_flags
 from .context import add_assignment_context, add_list_calls, add_variable_context
 from .exceptions import AstErrorBase
-from .inference import infer_types, infer_types_typpete
-from .language import LanguageSettings
-from py2many.transformers.mutability_transformer import detect_mutable_vars
-from py2many.transformers.nesting_transformer import detect_nesting_levels
-from py2many.transformers.raises_transformer import detect_raises
+from .inference import infer_types
+from .language import LanguageSettings, Transformer
 from .registry import get_all_settings, call_factory
 from .scope import add_scope_context
-from .__init__ import __version__
-
 
 _log = setup_logger()
 
@@ -78,20 +79,8 @@ STDOUT = "-"
 CWD = Path.cwd()
 
 
-DEFAULT_ARGS = {
-    "indent": 4,
-    "no_prologue": False,
-    "extension": False,
-    "suffix": "",
-    "comment_unsupported": False,
-    "ignore_formatter_errors": False,
-    "typpete": False,
-    "version": False,
-    "project": None,
-}
-
 # Create default arguments namespace for module-level initialization
-_DEFAULT_ARGS_NS = argparse.Namespace(**DEFAULT_ARGS)
+_DEFAULT_ARGS_NS = argparse.Namespace(**DEFAULTS)
 
 # Get language settings factories and instantiate with defaults
 _LANGS_FACTORIES = get_all_settings()
@@ -127,9 +116,9 @@ class ASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def validate(tree: ast.AST) -> None:
-    """Run structural validation on AST."""
-    ASTValidator().visit(tree)
+# def validate(tree: ast.AST) -> None:
+#     """Run structural validation on AST."""
+#     ASTValidator().visit(tree)
 
 
 # ------------------------------------------------------------------------------
@@ -156,7 +145,7 @@ def _run_transform(tx: Callable[[ast.AST], Any], tree: ast.AST) -> ast.AST:
     Supports both mutation-style and functional transformers.
     """
     name = getattr(tx, "__name__", type(tx).__name__)
-    before = _ast_hash(tree)
+    hash_before = _ast_hash(tree)
     result = tx(tree)
 
     if result is None:
@@ -169,12 +158,13 @@ def _run_transform(tx: Callable[[ast.AST], Any], tree: ast.AST) -> ast.AST:
         tree_after = result
 
     if ENABLE_AST_VALIDATION:
-        validate(tree_after)
+        # validate(tree_after)
+        ASTValidator().visit(tree_after)
 
-    after = _ast_hash(tree_after)
+    hash_after = _ast_hash(tree_after)
 
     _log.debug(f"transform {name}")
-    _log.trace(f"ast hash {before[:8]} -> {after[:8]}")
+    _log.trace(f"ast hash {hash_before[:8]} -> {hash_after[:8]}")
 
     return tree_after
 
@@ -205,7 +195,8 @@ def core_transformers(
     add_annotation_flags(tree)
 
     infer_meta = (
-        infer_types_typpete(tree) if args and args.typpete else infer_types(tree)
+    #    infer_types_typpete(tree) if args and args.typpete else infer_types(tree)
+        infer_types(tree)
     )
 
     add_imports(tree)
@@ -221,7 +212,7 @@ def core_transformers(
 def _transpile(
         filenames: List[Path],
         sources: List[str],
-        settings,
+        settings: LanguageSettings,
         args: Optional[argparse.Namespace] = None,
         _suppress_exceptions: type[BaseException] = Exception,
 ) -> Tuple[List[str], List[Path]]:
@@ -231,12 +222,11 @@ def _transpile(
 
     transpiler = settings.transpiler
 
-    rewriters: Tuple[Any] = tuple(settings.rewriters)
+    rewriters: Tuple[ast.NodeVisitor, ...] = tuple(settings.rewriters)
     transformers: List[Callable[[ast.AST], None]] = list(settings.transformers)
-    post_rewriters: List[Any] = list(settings.post_rewriters)
+    post_rewriters: List[ast.NodeVisitor] = list(settings.post_rewriters)
 
     tree_list: List[ast.AST] = []
-
     for filename, source in zip(filenames, sources):
         tree = ast.parse(source)
         setattr(tree, "__file__", filename)
@@ -268,7 +258,7 @@ def _transpile(
     if settings.ext != ".py":
         generic_post_rewriters.append(LoopElseRewriter(language))
 
-    rewriters: Tuple[ast.NodeTransformer, ...] = tuple(generic_rewriters) + rewriters
+    rewriters: Tuple[ast.NodeTransformer, ...] = tuple(generic_rewriters) + tuple(rewriters)
     post_rewriters = generic_post_rewriters + post_rewriters
 
     outputs: Dict[Path, str] = {}
@@ -291,11 +281,17 @@ def _transpile(
 
         except Exception as e:
             formatted = traceback.format_exc().splitlines()
+            verbose = getattr(args, "verbose", 0) if args else 0
 
             if isinstance(e, AstErrorBase):
                 print(f"{filename}:{e.lineno}:{e.col_offset}: {formatted[-1]}")
             else:
                 print(f"{filename}: {formatted[-1]}")
+
+            # In verbose mode, also print full traceback for debugging
+            if verbose >= 1:
+                print("\nFull traceback for debugging:")
+                print(traceback.format_exc())
 
             if not _suppress_exceptions or not isinstance(e, _suppress_exceptions):
                 raise
@@ -319,7 +315,7 @@ def _transpile_one(
     """
     Transpile a single AST tree into target language source code.
     """
-
+    trans = transpiler # something like <class 'targets.cpp.transpiler.CppTranspiler'>
     add_scope_context(tree)
 
     for rewriter in rewriters:
@@ -335,31 +331,60 @@ def _transpile_one(
 
     tree, infer_meta = core_transformers(tree, trees, args)
 
-    code = transpiler.visit(tree) + "\n"
+    code = trans.visit(tree) + "\n"
 
     out: List[str] = []
 
-    features = transpiler.features()
-    headers = transpiler.headers(infer_meta)
-    usings = transpiler.usings()
-    aliases = transpiler.aliases()
+    # Get features, headers, usings, aliases from transpiler
+    # These may be properties or methods depending on the backend
+    # Use callable() and inspect to handle both uniformly
 
+    # features - check if it's callable or property
+    features = trans.features() if callable(trans.features) else trans.features
     if features:
-        out.append(features)
+        out.append(str(features))
 
+    # headers ALWAYS takes infer_meta parameter
+    headers = trans.headers(infer_meta)
     if headers:
         out.append(headers)
 
+    # usings - check if it's callable or property
+    usings = trans.usings() if callable(trans.usings) else trans.usings
     if usings:
-        out.append(usings)
+        out.append(str(usings))
 
+    # aliases - check if it's callable or property
+    aliases = trans.aliases() if callable(trans.aliases) else trans.aliases
     if aliases:
-        out.append(aliases)
+        out.append(str(aliases))
 
     out.append(code)
 
-    if transpiler.extension:
-        out.append(transpiler.extension_module(tree))
+    # Handle extension_module carefully - signature varies by backend
+    if trans.extension():
+        # extension_module may be property or method
+        extension_module = trans.extension_module
+        
+        if callable(extension_module):
+            # It's a method - check signature
+            try:
+                sig = inspect.signature(extension_module)
+                # If method accepts tree parameter, pass it
+                if 'tree' in sig.parameters or len(sig.parameters) > 0:
+                    ext_mod = extension_module(tree)
+                else:
+                    # No parameters except self
+                    ext_mod = extension_module()
+            except Exception as e:
+                _log.debug(f"Failed to call extension_module: {e}")
+                ext_mod = ""
+        else:
+            # It's a property returning string
+            ext_mod = extension_module
+        
+        if ext_mod:
+            out.append(str(ext_mod))
 
     return "\n".join(out)
 
@@ -491,6 +516,7 @@ def transpile_from_args(
             except Exception as e:
 
                 formatted_lines = traceback.format_exc().splitlines()
+                verbose = getattr(args, "verbose", 0)
 
                 if isinstance(e, AstErrorBase):
                     print(
@@ -498,7 +524,12 @@ def transpile_from_args(
                         file=sys.stderr,
                     )
                 else:
-                    print(f"{source}: {formatted_lines[-1]}", file=sys.stderr)
+                    if verbose >= 1:
+                        # In verbose mode, print full traceback for debugging
+                        print(file=sys.stderr)
+                        print(traceback.format_exc(), file=sys.stderr)
+                    else:
+                        print(f"{source}: {formatted_lines[-1]}", file=sys.stderr)
                 rv = False
 
         else:
@@ -701,7 +732,7 @@ def _process_dir(
     print(f"Transpiling whole directory to {out_dir}:")
 
     if settings.create_project is not None and project:
-        cmd = settings.create_project + [f"{out_dir}"]
+        cmd = settings.create_project + (f"{out_dir}",)
 
         proc = run(cmd, capture_output=True)
 

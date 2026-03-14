@@ -9,8 +9,6 @@ can be used in functional pipelines without binding to a concrete
 logging implementation.
 """
 
-from __future__ import annotations
-
 import logging
 import sys
 import traceback

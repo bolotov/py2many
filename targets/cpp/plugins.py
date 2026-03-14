@@ -23,29 +23,29 @@ class CppTranspilerPlugins(ast.NodeVisitor):
         return FILE_MAP.get(file, file)
 
     @staticmethod
-    def visit_textio_read(node, vargs):
+    def visit_textio_read(node: ast.AST, vargs: List[str]):
         # TODO: complete implementation would need to handle misc. cases,
         #  and would likely need to use a different approach
         #  (e.g. using std::getline for reading into a string,
         #  and using std::istream::read for reading into a buffer with a specified size).
         return None
 
-    def visit_textio_write(self, node, vargs):
+    def visit_textio_write(self, node: ast.AST, vargs: List[str]):
         self._usings.add("<iostream>")
         return f"{CppTranspilerPlugins._translate_file()} << {vargs[0]}"
 
-    def visit_textio_flush(self, node, vargs):
+    def visit_textio_flush(self, node: ast.AST, vargs: List[str]):
         self._usings.add("<iostream>")
         return (
             f"{CppTranspilerPlugins._translate_file()}.flush()"
         )
 
-    def visit_range(self, node, vargs: List[str]) -> str:
+    def visit_range(self, node: ast.AST, vargs: List[str]) -> str:
         self._usings.add("<cppitertools/range.hpp>")
         args = ", ".join(vargs)
         return f"iter::range({args})"
 
-    def visit_print(self, node, vargs: List[str]) -> str:
+    def visit_print(self, node: ast.AST, vargs: List[str]) -> str:
         self._usings.add("<iostream>")
         buf = []
         for n in node.args:
@@ -78,18 +78,18 @@ class CppTranspilerPlugins(ast.NodeVisitor):
         return "(static_cast<float>(rand()) / static_cast<float>(RAND_MAX))"
 
     @staticmethod
-    def visit_cast(node, vargs, cast_to: str) -> str:
+    def visit_cast(node: ast.AST, vargs: List[str], cast_to: str) -> str:
         return f"static_cast<{cast_to}>({vargs[0]})"
 
     @staticmethod
-    def visit_floor(node, vargs) -> str:
+    def visit_floor(node: ast.AST, vargs: List[str]) -> str:
         return f"static_cast<int>(floor({vargs[0]}))"
 
 
 # FIXME: All that STUFF BELOW looks TOTALLY UNUSED
 
 # small one-liners are inlined here as lambdas
-SMALL_DISPATCH_MAP = {
+SMALL_DISPATCH_MAP: Dict[str, Callable[[ast.AST, List[str]], str]] = {
     "int": functools.partial(CppTranspilerPlugins.visit_cast, cast_to="int"),
     "chr": functools.partial(CppTranspilerPlugins.visit_cast, cast_to="char"),
     "str": lambda n, vargs: f"std::to_string({vargs[0]})" if vargs else '""',

@@ -47,6 +47,3 @@ def get_name_id(node: ast.AST) -> str | None:
     """Return node.id if it is an ast.Name, else None."""
     return node.id if isinstance(node, ast.Name) else None
 
-def safe_attr(node: ast.AST, name: str, default=None):
-    """Safely get an attribute from a node without raising."""
-    return getattr(node, name, default)

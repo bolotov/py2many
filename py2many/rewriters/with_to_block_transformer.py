@@ -80,13 +80,13 @@ class WithToBlockTransformer(ast.NodeTransformer):
 #     remainder = "".join(remainder)
 #     return first_letter + remainder
 
-def capitalize_first(name) -> str:
+def capitalize_first(name: str) -> str:
     first_letter = name[0].upper()
     remainder = name[1:]
     return first_letter + remainder
 
 
-def camel_case(name) -> str:
+def camel_case(name: str) -> str:
     if (
             "_" not in name
             or

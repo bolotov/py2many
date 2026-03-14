@@ -32,7 +32,8 @@ class PythonTranspiler(CLikeTranspiler):
 
     def usings(self):
         return (
-            "\n".join(
+            "" if self._no_prologue
+            else "\n".join(
                 [
                     "from typing import Callable, Dict, List, Set, Optional",
                     "from ctypes import c_int8 as i8, c_int16 as i16, c_int32 as i32, c_int64 as i64",
@@ -40,6 +41,4 @@ class PythonTranspiler(CLikeTranspiler):
                     "import sys",
                 ]
             )
-            if not self._no_prologue
-            else ""
         )

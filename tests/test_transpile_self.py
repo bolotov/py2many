@@ -193,7 +193,7 @@ class SelfTranspileTests(unittest.TestCase):
                 "language.py",
                 "mutability_transformer.py",
                 "nesting_transformer.py",
-                "process_helpers.py",
+                "find_executable.py",
                 "python_transformer.py",
                 "result.py",
                 "rewriters.py",

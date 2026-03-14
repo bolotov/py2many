@@ -21,7 +21,9 @@ from py2many.tracer import is_enum
 
 
 
-def infer_types_ast(node, context, solver):
+def infer_types_ast(node: ast.AST, context, solver) -> ast.AST:
+    """A placeholder for the main type inference function
+    that will use the provided context and solver."""
     return node
 
 
@@ -150,9 +152,7 @@ class LanguageInferenceBase:
 
 
 class InferTypesTransformer(ast.NodeTransformer):
-    """
-    Tries to infer types
-    """
+    """Tries to infer types"""
 
     TYPE_DICT = {
         int: "int",
@@ -163,6 +163,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         complex: "complex",
         type(...): "...",
     }
+
     FIXED_WIDTH_INTS_LIST = [
         bool,
         c_int8,
@@ -174,7 +175,9 @@ class InferTypesTransformer(ast.NodeTransformer):
         c_uint32,
         c_uint64,
     ]
+
     FIXED_WIDTH_INTS = set(FIXED_WIDTH_INTS_LIST)
+
     FIXED_WIDTH_BIT_LENGTH = {
         bool: 1,
         c_int8: 7,
@@ -212,6 +215,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         "usize",
         "ulong",
     ]
+
     FIXED_WIDTH_INTS_NAME = set(FIXED_WIDTH_INTS_NAME_LIST)
 
     def __init__(self):
@@ -453,7 +457,7 @@ class InferTypesTransformer(ast.NodeTransformer):
                             scope.returns.lifetime = lifetime
         return node
 
-    def visit_UnaryOp(self, node):
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.AST:
         """
         Infer type of unary operation based
         on the operand and annotate the node.
@@ -499,6 +503,7 @@ class InferTypesTransformer(ast.NodeTransformer):
         if left_id == "float" or right_id == "float":
             return "float"
         return left_id if left_idx > right_idx else right_id
+
 
     def visit_BinOp( self, node: ast.BinOp,) -> ast.AST:
         """Infer type of binary operation based on

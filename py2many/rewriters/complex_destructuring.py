@@ -5,7 +5,8 @@ from py2many.ast_helpers import create_ast_block
 
 class ComplexDestructuringRewriter(ast.NodeTransformer):
     """
-    Rewrites complex destructuring assignments (e.g. a, (b, c) = foo())
+    Rewrites complex destructuring assignments
+    (e.g. a, (b, c) = foo())
      into simpler ones that are easier to transpile to C-like languages
     """
 
@@ -25,10 +26,12 @@ class ComplexDestructuringRewriter(ast.NodeTransformer):
             return f"tmp{self._temp}"
         return f"__tmp{self._temp}"
 
-    def visit_Assign(self, node):
+    def visit_Assign(self, node: ast.Assign) -> ast.AST:
         """
-        Visits to rewrite complex destructuring assignments (e.g. a, (b, c) = foo())
-         into simpler ones that are easier to transpile to C-like languages. Only rewrites if
+        Visits to rewrite complex destructuring assignments
+        (e.g. a, (b, c) = foo())
+        into simpler ones that are easier to transpile
+        to C-like languages.
         """
         if self._disable:
             return node
@@ -40,6 +43,8 @@ class ComplexDestructuringRewriter(ast.NodeTransformer):
             for i in range(len(target.elts)):
                 temps.append(ast.Name(id=self._get_temp(), lineno=node.lineno))
                 # The irony!
+                # Here we are creating a new assignment node to assign the value of the temp variable to the original target element,
+                # but we are also modifying the original target element to be the temp variable.
                 target.elts[i], orig[i] = temps[i], target.elts[i]
                 body.append(
                     ast.Assign(targets=[orig[i]], value=temps[i], lineno=node.lineno) # FIXME: this

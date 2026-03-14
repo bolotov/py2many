@@ -55,7 +55,7 @@ class ASTxClassDef(ast.ClassDef):
 
 @dataclass
 class ASTxFunctionDef(ast.FunctionDef):
-    mutable_vars: List[str] = field(default_factory=list)
+    mutable_vars: List["ASTx"] = field(default_factory=list)
     python_main: bool = False
 
 
